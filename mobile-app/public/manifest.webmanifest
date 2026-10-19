@@ -1,0 +1,9 @@
+{
+  "name": "Guide Voyager — Vijayawada",
+  "short_name": "Guide Voyager",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f3ed",
+  "theme_color": "#f5f3ed",
+  "icons": [{ "src": "./assets/mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

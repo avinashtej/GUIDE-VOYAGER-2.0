@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f3ed">
+  <meta name="description" content="Discover Vijayawada, even when you're offline.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/styles.css">
+  <title>Guide Voyager — Vijayawada, at your own pace</title>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="side-rail" aria-label="Main navigation">
+      <a class="brand" href="#home" aria-label="Guide Voyager home"><img src="/assets/mark.svg" alt=""><span>guide<span class="brand-light">voyager</span></span></a>
+      <div class="rail-label" data-i18n="your_journey">YOUR JOURNEY</div>
+      <nav class="rail-nav">
+        <button class="nav-item active" data-view="home"><span class="nav-icon">⌂</span><span data-i18n="home">Home</span></button>
+        <button class="nav-item" data-view="explore"><span class="nav-icon">⌕</span><span data-i18n="explore">Explore</span></button>
+        <button class="nav-item" data-view="saved"><span class="nav-icon">♡</span><span data-i18n="saved">Saved places</span><span class="nav-count" id="saved-count">0</span></button>
+        <button class="nav-item" data-view="itinerary"><span class="nav-icon">▤</span><span data-i18n="my_plan">My plan</span></button>
+        <button class="nav-item" data-view="nearby"><span class="nav-icon">◎</span><span data-i18n="near_me">Near me</span></button>
+        <button class="nav-item" data-view="map"><span class="nav-icon">⌖</span><span data-i18n="maps">Maps</span></button>
+        <button class="nav-item" data-view="transport"><span class="nav-icon">↗</span><span data-i18n="transport">Transport</span></button>
+      </nav>
+      <div class="rail-bottom">
+        <div class="offline-card"><span class="status-dot"></span><div><strong data-i18n="ready_offline">Ready offline</strong><small data-i18n="essentials_on_device">Essentials on this device</small></div></div>
+        <button class="nav-item" data-view="settings"><span class="nav-icon">⚙</span><span data-i18n="settings">Settings</span></button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="mobile-brand"><img src="/assets/mark.svg" alt=""><span>guide<span class="brand-light">voyager</span></span></div>
+        <div class="location-pill"><span class="location-pin">⌖</span><span>VIJAYAWADA, ANDHRA PRADESH</span><span class="chevron">⌄</span></div>
+        <div class="top-actions"><span class="offline-label"><i class="status-dot"></i><span data-i18n="offline_ready">Offline ready</span></span><button class="avatar-button" id="open-settings" aria-label="Open settings">A</button></div>
+      </header>
+      <div class="view-wrap" id="view"></div>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="active" data-view="home"><span>⌂</span><small data-i18n="home">Home</small></button>
+      <button data-view="explore"><span>⌕</span><small data-i18n="explore">Explore</small></button>
+      <button data-view="map"><span>⌖</span><small data-i18n="maps">Maps</small></button>
+      <button data-view="saved"><span>♡</span><small data-i18n="saved">Saved</small></button>
+      <button data-view="itinerary"><span>▤</span><small data-i18n="my_plan">My plan</small></button>
+      <button data-view="settings"><span>•••</span><small data-i18n="more">More</small></button>
+    </nav>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog class="modal" id="feedback-dialog">
+    <form method="dialog" class="modal-card" id="feedback-form">
+      <button class="modal-close" value="cancel" aria-label="Close">×</button>
+      <span class="eyebrow" data-i18n="your_voice">YOUR VOICE</span><h2 data-i18n="rate_place">Rate this place</h2>
+      <p id="feedback-place" class="muted"></p>
+      <div class="star-picker" role="group" aria-label="Rating from one to five stars"></div>
+      <label class="field-label" for="feedback-comment" data-i18n="optional_note">A note, if you'd like</label>
+      <textarea id="feedback-comment" maxlength="500" rows="3" placeholder="What should another traveller know?"></textarea>
+      <button class="button button-dark full" id="submit-feedback" value="submit" data-i18n="save_feedback">Save feedback</button>
+      <small class="muted" data-i18n="feedback_offline_note">Saved on this device and sent when you're online.</small>
+    </form>
+  </dialog>
+  <dialog class="modal" id="account-dialog">
+    <form class="modal-card" id="account-form">
+      <button type="button" class="modal-close" data-action="close-account" aria-label="Close">×</button>
+      <span class="eyebrow">OPTIONAL ACCOUNT</span><h2 id="account-title">Sign in</h2>
+      <p class="muted">Guest access stays available. Sign in and registration need an internet connection.</p>
+      <label class="field-label" for="account-email">Email</label><input id="account-email" class="text-field" type="email" autocomplete="email" required maxlength="254">
+      <label class="field-label" for="account-password">Password</label><input id="account-password" class="text-field" type="password" autocomplete="current-password" required minlength="10" maxlength="128">
+      <p id="account-message" class="muted" role="status"></p>
+      <button class="button button-dark full" id="account-submit" type="submit">Sign in</button>
+      <button class="text-button full" id="account-switch" type="button">Create an account</button>
+    </form>
+  </dialog>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
+
+

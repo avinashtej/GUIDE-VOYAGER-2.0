@@ -1,0 +1,41 @@
+{
+  "name": "guide-voyager-2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline-first tourism assistance for Vijayawada",
+  "scripts": {
+    "start": "node backend/src/server.js",
+    "dev": "node --watch backend/src/server.js",
+    "db:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-local-postgres.ps1",
+    "db:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-postgres.ps1 Start",
+    "db:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-postgres.ps1 Stop",
+    "dev:web": "vite --config vite.config.mjs --host 0.0.0.0",
+    "build:mobile": "vite build --config vite.config.mjs",
+    "cap:add:android": "cap add android",
+    "cap:sync": "npm run build:mobile && cap sync android",
+    "cap:open:android": "cap open android"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.1",
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/geolocation": "^8.2.3",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "vite": "^8.3.4"
+  }
+}
