@@ -28,7 +28,11 @@ An administrator saves a draft, runs the validation/preview step, then explicitl
 
 ## Event processing
 
-Each client event has a UUID and event timestamp. Uploads accept batches of at most 100, store the event ID as a primary key, and safely ignore duplicate IDs on retry. Feedback adds a 1–5 rating, a destination ID and an optional comment. Entries start pending administrator review; only approved entries contribute to the dashboard rating summary. The sync endpoint is rate-limited. Scans and opens are events only; they are not treated as proof of a visit.
+Usage analytics is opt-in per app installation. After a user enables it, screen views and app actions are recorded for signed-in accounts or under a persistent random guest ID; events include a per-launch session ID and sync in batches when the API is reachable. Offline events remain queued and are removed only after the server acknowledges their IDs, so retries are safe. The admin dashboard shows the account email or pseudonymous guest ID, session and event details. Turning analytics off clears queued analytics on that device; previously received records remain available to administrators for up to 24 months.
+
+Search text, passwords, QR contents and precise location coordinates are never included in analytics. Search length and result count, destination IDs, action names, route source and route distance may be stored. Location permission results are recorded without location coordinates. User-submitted feedback is a separate feature: its rating and optional comment are sent for administrator review even when analytics is off, because the user explicitly submits that feedback.
+
+Each event has a UUID and event timestamp. Uploads accept batches of at most 100, store the event ID as a primary key, and safely ignore duplicate IDs on retry. Events are linked to an account only when the API validates a token for that account; guest events use the installation's random guest ID. Feedback entries start pending administrator review; only approved ratings contribute to the dashboard rating summary. The sync endpoint is rate-limited. Scans and opens are events only; they are not treated as proof of a visit.
 
 A daily API cleanup deletes detailed analytics older than 24 months. Feedback is stored separately and is not deleted by this policy. Production backup and export retention need a matching operational policy.
 
@@ -45,4 +49,6 @@ Maps and Nearby render a bundled OpenStreetMap extract locally on a canvas. `mob
 - Periodic OSM extract refresh and review of destination access points and walking routes.
 - Hardware QR schema and real sample images.
 - Encryption secret management, Android recovery, and account-data isolation after logout.
-- Hosting provider, Play Store URL, backup/recovery operations and analytics monitoring.
+- Play Store URL and production backup/recovery operations.
+
+For Android builds that use a separately hosted API, set `VITE_API_BASE_URL` to the deployed API origin during the Vite build. Same-origin browser deployments can leave it blank. The backend migration runner applies the activity attribution migration at startup.

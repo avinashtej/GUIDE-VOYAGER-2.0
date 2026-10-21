@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 const { query, pool, isConfigured } = require('../db');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, authenticateOptional, requireRole } = require('../middleware/auth');
 const router = express.Router();
 const syncLimiter = require('express-rate-limit')({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false });
 const emailSchema = z.string().email().max(254);
@@ -51,17 +51,37 @@ router.post('/auth/login',ensureDatabase,async(req,res)=>{
 });
 router.get('/auth/me',authenticate,(req,res)=>res.json({user:{id:req.user.sub,email:req.user.email,role:req.user.role}}));
 
-const eventSchema=z.object({id:z.string().uuid(),type:z.enum(['feedback','destination_view','itinerary_place_added','qr_scan','kiosk_open']),destinationId:z.string().max(100).optional(),rating:z.number().int().min(1).max(5).optional(),comment:z.string().max(500).optional(),payload:z.record(z.unknown()).optional(),createdAt:z.string().datetime()});
-router.post('/sync/events',syncLimiter,ensureDatabase,async(req,res)=>{
+const activityPayloadSchema=z.object({
+ screen:z.enum(['welcome','home','explore','saved','itinerary','nearby','transport','settings','qr','map','detail']).optional(),
+ action:z.string().regex(/^[a-z][a-z0-9-]{0,49}$/).optional(),
+ destinationId:z.string().max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
+ category:z.enum(['All places','Sacred places','River & city','Culture & views','Nature & outdoors','Heritage','Transport hubs','Malls & shopping','Health & emergency','Police & safety']).optional(),
+ queryLength:z.number().int().min(0).max(300).optional(),resultCount:z.number().int().min(0).max(10000).optional(),
+ routeSource:z.enum(['device','kiosk','place']).optional(),routeMeters:z.number().min(0).max(500000).optional(),
+ outcome:z.enum(['success','failure','granted','denied','current','updated','unavailable','invalid','requested']).optional(),
+ inputLength:z.number().int().min(0).max(10000).optional(),rating:z.number().int().min(1).max(5).optional(),settingValue:z.enum(['en','te','hi','0.9','1','1.1','1.2']).optional()
+}).strict();
+const eventSchema=z.object({
+ id:z.string().uuid(),type:z.enum(['session_start','screen_view','ui_action','search','route_calculated','location_request','content_update','app_update','auth_register','auth_login','qr_check','feedback','destination_view','itinerary_place_added','qr_scan','kiosk_open']),
+ accountId:z.string().uuid().optional(),guestId:z.string().uuid().optional(),sessionId:z.string().uuid(),
+ destinationId:z.string().max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),rating:z.number().int().min(1).max(5).optional(),comment:z.string().max(500).optional(),payload:activityPayloadSchema.optional(),createdAt:z.string().datetime()
+}).strict().superRefine((event,ctx)=>{
+ if(Boolean(event.accountId)===Boolean(event.guestId))ctx.addIssue({code:z.ZodIssueCode.custom,message:'Specify exactly one account or guest identity.'});
+ if(event.type==='feedback'&&(!event.destinationId||!event.rating))ctx.addIssue({code:z.ZodIssueCode.custom,message:'Feedback requires a destination and rating.'});
+});
+router.post('/sync/events',syncLimiter,authenticateOptional,ensureDatabase,async(req,res)=>{
  const parsed=z.object({events:z.array(eventSchema).max(100)}).safeParse(req.body);
  if(!parsed.success)return res.status(400).json({error:'One or more queued events are invalid.'});
- const client=await pool.connect();let accepted=0;
+ const accountIds=[...new Set(parsed.data.events.filter(event=>event.accountId).map(event=>event.accountId))];
+ if(accountIds.length&&(!req.user||accountIds.length!==1||accountIds[0]!==req.user.sub))return res.status(req.user?403:401).json({error:'Sign in with the account that created these queued events to sync them.'});
+ const client=await pool.connect();const acceptedIds=[];
  try{await client.query('BEGIN');for(const event of parsed.data.events){const {id,type,destinationId,rating,comment,payload,createdAt}=event;
-   if(type==='feedback'&&(!destinationId||!rating))continue;
-   const inserted=await client.query('INSERT INTO analytics_events(event_id,event_type,payload,occurred_at) VALUES($1,$2,$3,$4) ON CONFLICT(event_id) DO NOTHING RETURNING event_id',[id,type,payload|| (type==='feedback'?{destinationId,rating}:{}),createdAt]);
-   if(type==='feedback')await client.query('INSERT INTO feedback(event_id,destination_id,rating,comment,submitted_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(event_id) DO NOTHING',[id,destinationId,rating,comment||'',createdAt]);
-   if(inserted.rowCount)accepted++;
- }await client.query('COMMIT');res.status(202).json({accepted,received:parsed.data.events.length});}
+   const userId=event.accountId?req.user.sub:null,guestId=event.guestId||null;
+   const eventPayload=type==='feedback'?{destinationId,rating}:payload||{};
+   await client.query('INSERT INTO analytics_events(event_id,event_type,payload,occurred_at,user_id,guest_id,session_id) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(event_id) DO NOTHING',[id,type,eventPayload,createdAt,userId,guestId,event.sessionId]);
+   if(type==='feedback')await client.query('INSERT INTO feedback(event_id,destination_id,rating,comment,submitted_at,user_id,guest_id,session_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(event_id) DO NOTHING',[id,destinationId,rating,comment||'',createdAt,userId,guestId,event.sessionId]);
+   acceptedIds.push(id);
+ }await client.query('COMMIT');res.status(202).json({accepted:acceptedIds.length,acceptedIds,received:parsed.data.events.length});}
  catch(error){await client.query('ROLLBACK');console.error('Event sync failed:',error.message);res.status(500).json({error:'Could not process queued events.'});}
  finally{client.release();}
 });
@@ -104,5 +124,27 @@ router.patch('/admin/feedback/:eventId/review',ensureDatabase,async(req,res)=>{
  const parsed=z.object({status:z.enum(['approved','rejected'])}).safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Choose approved or rejected.'});
  try{const result=await query('UPDATE feedback SET review_status=$2,reviewed_by=$3,reviewed_at=now() WHERE event_id=$1 RETURNING event_id,review_status',[req.params.eventId,parsed.data.status,req.user.sub]);if(!result.rowCount)return res.status(404).json({error:'Feedback entry not found.'});res.json({feedback:result.rows[0]});}
  catch(error){console.error('Feedback review failed:',error.message);res.status(500).json({error:'Could not update feedback review.'});}
+});
+router.get('/admin/analytics',ensureDatabase,async(req,res)=>{
+ const days=Math.min(365,Math.max(1,Number.parseInt(req.query.days,10)||30));
+ const limit=Math.min(500,Math.max(1,Number.parseInt(req.query.limit,10)||200));
+ try{
+  const [summary,items]=await Promise.all([
+   query("SELECT count(*)::int AS total_events,count(DISTINCT user_id)::int AS account_users,count(DISTINCT guest_id)::int AS guest_devices,count(DISTINCT session_id)::int AS sessions FROM analytics_events WHERE occurred_at >= now() - ($1::int * interval '1 day')",[days]),
+   query("SELECT e.event_id,e.event_type,e.payload,e.occurred_at,e.user_id,e.guest_id,e.session_id,u.email FROM analytics_events e LEFT JOIN users u ON u.id=e.user_id WHERE e.occurred_at >= now() - ($1::int * interval '1 day') ORDER BY e.occurred_at DESC LIMIT $2",[days,limit])
+  ]);
+  res.json({days,summary:summary.rows[0],events:items.rows});
+ }catch(error){console.error('Analytics read failed:',error.message);res.status(500).json({error:'Could not load usage analytics.'});}
+});
+router.get('/admin/users',ensureDatabase,async(req,res)=>{
+ const limit=Math.min(500,Math.max(1,Number.parseInt(req.query.limit,10)||200));
+ try{
+  const result=await query(`SELECT u.id,u.email,u.role,u.created_at,
+    count(e.event_id)::int AS synced_activity_count,max(e.occurred_at) AS last_activity
+    FROM users u LEFT JOIN analytics_events e ON e.user_id=u.id
+    GROUP BY u.id,u.email,u.role,u.created_at
+    ORDER BY u.created_at DESC LIMIT $1`,[limit]);
+  res.json({users:result.rows});
+ }catch(error){console.error('Admin user list failed:',error.message);res.status(500).json({error:'Could not load accounts.'});}
 });
 module.exports=router;

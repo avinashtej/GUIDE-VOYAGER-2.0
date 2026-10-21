@@ -287,11 +287,12 @@ export function bindOfflineMap(canvas, map, options = {}) {
   if (!options.selectingKiosk) focusDestination(canvas, map, options.destinationId, options.route, options.origin);
   canvas.__mapOptions = options;
   let pointerStart = null;
+  let dragTracked = false;
   const redraw = () => drawOfflineMap(canvas, map, canvas.__mapOptions);
   if (!canvas.__offlineMapBound) {
     canvas.__offlineMapBound = true;
-    canvas.addEventListener('pointerdown', event => { pointerStart = { x: event.clientX, y: event.clientY, px: viewport.x, py: viewport.y }; canvas.setPointerCapture(event.pointerId); });
-    canvas.addEventListener('pointermove', event => { if (!pointerStart) return; const dx = event.clientX - pointerStart.x, dy = event.clientY - pointerStart.y; if (Math.abs(dx) + Math.abs(dy) > 3) { viewport.x = pointerStart.px + dx; viewport.y = pointerStart.py + dy; redraw(); } });
+    canvas.addEventListener('pointerdown', event => { pointerStart = { x: event.clientX, y: event.clientY, px: viewport.x, py: viewport.y }; dragTracked = false; canvas.setPointerCapture(event.pointerId); });
+    canvas.addEventListener('pointermove', event => { if (!pointerStart) return; const dx = event.clientX - pointerStart.x, dy = event.clientY - pointerStart.y; if (Math.abs(dx) + Math.abs(dy) > 3) { if(!dragTracked){canvas.__mapOptions.onInteraction?.('map-pan');dragTracked=true;}viewport.x = pointerStart.px + dx; viewport.y = pointerStart.py + dy; redraw(); } });
     canvas.addEventListener('pointerup', event => {
       if (!pointerStart) return;
       const dx = event.clientX - pointerStart.x, dy = event.clientY - pointerStart.y; pointerStart = null;
@@ -299,7 +300,7 @@ export function bindOfflineMap(canvas, map, options = {}) {
       const rect = canvas.getBoundingClientRect(), p = projection(canvas, map), point = p.fromXY(event.clientX - rect.left, event.clientY - rect.top);
       if (canvas.__mapOptions.selectingKiosk) canvas.__mapOptions.onPickKiosk?.(point);
     });
-    canvas.addEventListener('wheel', event => { event.preventDefault(); viewport.zoom = Math.min(8, Math.max(0.8, viewport.zoom * (event.deltaY < 0 ? 1.12 : 0.89))); redraw(); }, { passive: false });
+    canvas.addEventListener('wheel', event => { event.preventDefault();canvas.__mapOptions.onInteraction?.('map-gesture-zoom');viewport.zoom = Math.min(8, Math.max(0.8, viewport.zoom * (event.deltaY < 0 ? 1.12 : 0.89))); redraw(); }, { passive: false });
     new ResizeObserver(redraw).observe(canvas);
   }
   redraw();

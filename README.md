@@ -9,7 +9,7 @@ An offline-first Vijayawada tourism guide with a plain HTML/CSS/JavaScript mobil
 - English, Telugu and Hindi interface labels and localized place names. Descriptions are currently in English.
 - Offline saved places, a one-list itinerary, font-size preference and a feedback queue. Browser builds use IndexedDB; native builds use the Capacitor SQLite plugin.
 - A modular QR entry/decoder that does not interpret the payload until the hardware team supplies the format and sample codes.
-- Backend authentication, idempotent event/feedback ingestion, published content snapshots, draft validation and explicit publish steps, administrator feedback views, and 24-month analytics cleanup.
+- Backend authentication, idempotent event/feedback ingestion, published content snapshots, draft validation and explicit publish steps, administrator account, feedback and activity views, and 24-month analytics cleanup.
 - Progressive Web App shell caching for a browser install. The Android build packages its local web assets.
 
 ## Run locally
@@ -63,7 +63,7 @@ Build the APK from Android Studio or Gradle after the Android SDK/JDK are config
 - The map extract is © OpenStreetMap contributors, ODbL 1.0, snapshot 2026-10-19. Destination pins are matched to named OSM features or come from the coordinate source recorded in the map data; some facilities may have approximate access points.
 - The hardware QR contract and samples are outstanding; the app currently displays raw decoded text without interpreting it.
 - Account registration/login is implemented. Cross-device favorites/itinerary sync, guest-data migration and protected account-specific offline data are not active. The local encryption/key-management decision remains open in the blueprint.
-- Admin drafts currently manage destination text and source links. Translation review, image management, route/transport editing, analytics dashboards and inactive-content controls remain to be implemented.
+- Admin drafts currently manage destination text and source links. The dashboard lists registered accounts and synced activity; activity tracking is consent-based. Translation review, image management, route/transport editing and inactive-content controls remain to be implemented.
 - No live railway/bus timetables, fares, travel durations, app-store URL or hosting configuration are bundled.
 - Detailed analytics events are deleted after 24 months by the running API process. Production operations still need a backup/export retention policy and monitoring for cleanup failures.
 
