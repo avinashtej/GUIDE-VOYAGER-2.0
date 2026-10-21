@@ -73,6 +73,16 @@
       <button class="text-button full" id="account-switch" type="button">Create an account</button>
     </form>
   </dialog>
+  <dialog class="modal" id="delete-account-dialog" aria-labelledby="delete-account-title">
+    <form class="modal-card" id="delete-account-form">
+      <button type="button" class="modal-close" data-action="close-delete-account" aria-label="Close">×</button>
+      <span class="eyebrow">ACCOUNT CONTROL</span><h2 id="delete-account-title">Delete your account</h2>
+      <p class="muted">This permanently deletes your account, account-linked activity and feedback from the server. Saved places and plans on this device are also removed. This needs an internet connection and cannot be undone.</p>
+      <label class="field-label" for="delete-account-password">Confirm your password</label><input id="delete-account-password" class="text-field" type="password" autocomplete="current-password" required maxlength="128">
+      <p id="delete-account-message" class="muted" role="status"></p>
+      <button class="button button-dark full" type="submit">Permanently delete account</button>
+    </form>
+  </dialog>
   <dialog class="modal" id="analytics-consent" aria-labelledby="analytics-consent-title">
     <div class="modal-card"><span class="eyebrow">YOUR PRIVACY</span><h2 id="analytics-consent-title">Share app usage?</h2><p class="muted">If enabled, Guide Voyager records pages opened and actions such as searches, saved places, plans and route requests. Account activity is linked to your account; guest activity uses a random ID on this device. Search text, passwords, QR contents and location coordinates are never included. Events sync when you’re online. You can change this choice in Settings. Feedback you submit is sent separately so the administrator can review it.</p><button type="button" class="button button-dark full" data-action="analytics-enable">Allow usage tracking</button><button type="button" class="text-button full" data-action="analytics-disable">Continue without tracking</button></div>
   </dialog>

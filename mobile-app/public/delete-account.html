@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f3ed"><title>Delete your account — Guide Voyager</title>
+  <style>body{max-width:620px;margin:48px auto;padding:0 22px;color:#173f35;background:#f5f3ed;font:17px/1.6 system-ui,sans-serif}main{background:#fffefa;border:1px solid #e3e0d5;border-radius:20px;padding:28px}h1{line-height:1.15}label{display:block;font-weight:650;margin:18px 0 6px}input{box-sizing:border-box;width:100%;padding:14px;border:1px solid #d8d9cf;border-radius:12px;font:inherit}button{width:100%;margin-top:20px;padding:15px;border:0;border-radius:12px;background:#173f35;color:white;font:inherit;font-weight:700;cursor:pointer}.message{min-height:1.5em;color:#9a3a29}.muted{color:#64756e;font-size:15px}a{color:#17614d}</style>
+</head>
+<body><main>
+  <p class="muted">GUIDE VOYAGER · ACCOUNT CONTROL</p><h1>Request account deletion</h1>
+  <p>Sign in with the Guide Voyager account you want to delete. The service will ask for your password and then permanently remove the account and account-linked server data.</p>
+  <p class="muted">This also deletes account-linked activity and feedback. Guest activity and guest feedback are not linked to the account. Saved places, itineraries and preferences are stored only on each device, so they remain there after a web deletion request; open Settings in the app and use “Clear guest data” to remove them. This action cannot be undone.</p>
+  <form id="delete-form">
+    <label for="email">Account email</label><input id="email" type="email" autocomplete="username" required maxlength="254">
+    <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required maxlength="128">
+    <p id="message" class="message" role="status"></p><button type="submit">Sign in and permanently delete account</button>
+  </form>
+  <p class="muted">Need help with guest feedback or cannot sign in? Email <a href="mailto:avinashtejdadi@gmail.com">avinashtejdadi@gmail.com</a>. See the <a href="/privacy-policy.html">Privacy Policy</a>.</p>
+</main>
+</main><script src="/delete-account.js" defer></script></body></html>

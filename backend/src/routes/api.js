@@ -50,6 +50,28 @@ router.post('/auth/login',ensureDatabase,async(req,res)=>{
  catch(error){console.error('Login failed:',error.message);res.status(500).json({error:'Could not sign in.'});}
 });
 router.get('/auth/me',authenticate,(req,res)=>res.json({user:{id:req.user.sub,email:req.user.email,role:req.user.role}}));
+router.delete('/auth/account',authenticate,ensureDatabase,async(req,res)=>{
+ const parsed=z.object({password:z.string().min(1).max(128)}).safeParse(req.body);
+ if(!parsed.success)return res.status(400).json({error:'Enter your password to confirm account deletion.'});
+ const client=await pool.connect();
+ try{
+  await client.query('BEGIN');
+  const selected=await client.query('SELECT id,role,password_hash FROM users WHERE id=$1 FOR UPDATE',[req.user.sub]);
+  if(!selected.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Account not found.'});}
+  const user=selected.rows[0];
+  if(!await bcrypt.compare(parsed.data.password,user.password_hash)){await client.query('ROLLBACK');return res.status(401).json({error:'Password is incorrect.'});}
+  if(user.role==='admin'){
+   const admins=await client.query("SELECT count(*)::int AS count FROM users WHERE role='admin'");
+   if(admins.rows[0].count<=1){await client.query('ROLLBACK');return res.status(409).json({error:'The last administrator account cannot be deleted. Assign another administrator first.'});}
+  }
+  await client.query('DELETE FROM feedback WHERE user_id=$1',[user.id]);
+  await client.query('DELETE FROM analytics_events WHERE user_id=$1',[user.id]);
+  await client.query('DELETE FROM users WHERE id=$1',[user.id]);
+  await client.query('COMMIT');
+  res.json({deleted:true});
+ }catch(error){await client.query('ROLLBACK');console.error('Account deletion failed:',error.message);res.status(500).json({error:'Could not delete the account. Please try again.'});}
+ finally{client.release();}
+});
 
 const activityPayloadSchema=z.object({
  screen:z.enum(['welcome','home','explore','saved','itinerary','nearby','transport','settings','qr','map','detail']).optional(),
