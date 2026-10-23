@@ -58,7 +58,7 @@ async function syncBundledContent(){
   const merged=new Map(bundled.map(place=>[place.id,place]));
   for(const row of published.rows){const draft=row.payload||{};const id=row.destination_id;if(merged.has(id))merged.set(id,{...merged.get(id),...draft,id});else merged.set(id,{...draft,id});}
   const places=[...merged.values()];
-  await client.query("UPDATE destinations SET status='archived' WHERE status='published'");
+  await client.query("UPDATE destinations SET status='inactive' WHERE status='published'");
   for(const place of places)await client.query("INSERT INTO destinations(id,payload,status,updated_at) VALUES($1,$2,'published',now()) ON CONFLICT(id) DO UPDATE SET payload=EXCLUDED.payload,status='published',updated_at=now()",[place.id,JSON.stringify(place)]);
   await client.query('INSERT INTO content_versions(version,destinations) VALUES($1,$2)',[manifest.contentVersion,JSON.stringify(places)]);
   await client.query('COMMIT');
