@@ -1,8 +1,8 @@
 {
-  "name":"Guide Voyager — Vijayawada",
-  "contentVersion":"2026.10.19-offline-ambedkar-gandhi-update",
-  "updatedAt":"2026-10-19",
-  "language":"en",
-  "destinations":20,
-  "sources":"Place records link to official government, provider or venue information. Confirm time-sensitive details before travel."
+  "name": "Guide Voyager — Vijayawada",
+  "contentVersion": "2026.10.23-places-removed",
+  "updatedAt": "2026-10-23",
+  "language": "en",
+  "destinations": 63,
+  "sources": "Place records link to official government, provider or venue information when available. Photo credits are shown on place pages; confirm time-sensitive details before travel."
 }

@@ -18,7 +18,7 @@ ROAD_CLASSES = {
     "path": 7, "track": 7, "steps": 7, "cycleway": 7, "bridleway": 7,
 }
 CLASS_NAMES = ["motorway", "trunk", "primary", "secondary", "tertiary", "local", "service", "path"]
-BOUNDS = [80.43, 16.38, 80.75, 16.62]
+BOUNDS = [80.43, 16.38, 80.82, 16.65]
 
 ALIASES = {
     "kanaka-durga-temple": ["Sri Durga Malleswara Swamy Varla Devasthanam", "Kanaka Durga Temple"],
@@ -48,6 +48,9 @@ MANUAL_POINTS = {
     "prakasam-barrage": {"x": 80.6325, "y": 16.509444, "name": "Prakasam Barrage", "source": "Krishna River Management Board", "url": "https://www.krmb.gov.in/html/project37.html"},
     "pvp-square": {"x": 80.642867, "y": 16.502358, "name": "PVP Square", "source": "Wikimedia Commons photo coordinates", "url": "https://commons.wikimedia.org/wiki/File:PVP_square_Vijayawada.jpg"},
     "laila-mall": {"x": 80.6284847, "y": 16.5065614, "name": "Laila Mall", "source": "Business listing coordinates", "url": "https://rentechdigital.com/smartscraper/business-report-details/india/andhra-pradesh/list-of-movie-theaters-in-vijayawada"},
+    # Public passenger-terminal approach road, rather than the airport/runway centre.
+    "vijayawada-international-airport": {"x": 80.7904709, "y": 16.522581, "name": "Vijayawada Airport new Terminal Road", "source": "OpenStreetMap mapped terminal access road", "url": "https://www.openstreetmap.org/?mlat=16.522581&mlon=80.7904709#map=18/16.522581/80.7904709", "accessNote": "Offline directions end at the mapped passenger-terminal approach road. Check airport notices and current road access before travelling."},
+    "kondapalli-fort": {"x": 80.5293247, "y": 16.6247467, "name": "Kondapalli Fort Road entrance", "source": "OpenStreetMap mapped fort access road", "url": "https://www.openstreetmap.org/?mlat=16.6247467&mlon=80.5293247#map=17/16.6247467/80.5293247", "accessNote": "Offline directions end at the mapped Kondapalli Fort Road entrance. Confirm current fort opening and access locally."},
 }
 
 def norm(value: str) -> str:
@@ -68,11 +71,12 @@ def main() -> None:
     parser.add_argument("source", type=Path, help="BBBike .osm.gz file")
     parser.add_argument("destinations", type=Path, help="destinations.json")
     parser.add_argument("output", type=Path, help="output compact map JSON")
+    parser.add_argument("--base-map", type=Path, help="existing bundled map; preserve its verified place pins and labels")
     args = parser.parse_args()
 
     node_coords: dict[str, tuple[int, int]] = {}
     features: list[dict] = []
-    raw_roads: list[tuple[str, int, list[str]]] = []
+    raw_roads: list[tuple[str, int, list[str], int, float | None]] = []
     raw_waterways: list[tuple[str, list[str]]] = []
     with gzip.open(args.source, "rb") as source:
         for _, element in ET.iterparse(source, events=("end",)):
@@ -92,8 +96,20 @@ def main() -> None:
             elif element.tag == "way":
                 tags = tags_of(element)
                 refs = [node.get("ref", "") for node in element.findall("nd")]
-                if tags.get("highway") in ROAD_CLASSES and tags.get("access") not in ("no", "private") and tags.get("foot") not in ("no", "private") and tags.get("highway") not in ("motorway", "motorway_link"):
-                    raw_roads.append((tags.get("name") or tags.get("ref") or "", ROAD_CLASSES[tags["highway"]], refs))
+                if tags.get("highway") in ROAD_CLASSES:
+                    # Apply the most specific vehicle access tag available.
+                    vehicle_access = (tags.get("motorcar") or tags.get("motor_vehicle") or
+                                      tags.get("vehicle") or tags.get("access") or "").casefold()
+                    if vehicle_access not in ("no", "private", "delivery", "customers", "agricultural", "forestry"):
+                        highway = tags["highway"]
+                        oneway = tags.get("oneway", "").casefold()
+                        direction = -1 if oneway == "-1" else 1 if oneway in ("yes", "true", "1") or (oneway != "no" and (highway in ("motorway", "motorway_link") or tags.get("junction") == "roundabout")) else 0
+                        speed_text = tags.get("maxspeed", "")
+                        speed_match = re.search(r"\d+(?:\.\d+)?", speed_text)
+                        speed_kmh = float(speed_match.group()) if speed_match else None
+                        if speed_kmh and "mph" in speed_text.casefold():
+                            speed_kmh *= 1.60934
+                        raw_roads.append((tags.get("name") or tags.get("ref") or "", ROAD_CLASSES[highway], refs, direction, speed_kmh))
                 if tags.get("waterway") in ("river", "canal", "stream", "riverbank"):
                     raw_waterways.append((tags.get("name") or "", refs))
                 if is_named_feature(tags) and refs:
@@ -117,7 +133,7 @@ def main() -> None:
             node_ids[osm_id] = len(coords)
             coords.append([coordinate[0], coordinate[1]])
         return node_ids[osm_id]
-    for name, road_class, refs in raw_roads:
+    for name, road_class, refs, direction, speed_kmh in raw_roads:
         segments: list[int] = []
         for ref in refs:
             index = coord_index(ref)
@@ -125,7 +141,7 @@ def main() -> None:
                 if len(segments) > 1:
                     if name not in name_ids:
                         name_ids[name] = len(names); names.append(name)
-                    roads.append([name_ids[name], road_class, segments])
+                    roads.append([name_ids[name], road_class, segments, direction, speed_kmh])
                 segments = []
                 continue
             if not segments or segments[-1] != index:
@@ -133,7 +149,7 @@ def main() -> None:
         if len(segments) > 1:
             if name not in name_ids:
                 name_ids[name] = len(names); names.append(name)
-            roads.append([name_ids[name], road_class, segments])
+            roads.append([name_ids[name], road_class, segments, direction, speed_kmh])
 
     waterways = []
     for water_name, refs in raw_waterways:
@@ -201,8 +217,17 @@ def main() -> None:
             unmatched.append(place_id)
 
     # Keep named features useful for map labels and the destination coordinate check.
+    previous_map = json.loads(args.base_map.read_text(encoding="utf-8")) if args.base_map and args.base_map.exists() else {}
+    # Keep reviewed POIs already bundled in the app. The expanded extract is
+    # road-only; it supplies new roads while previous verified points/labels stay.
+    previous_places = previous_map.get("places", {})
+    previous_places.update(matched)
+    merged_features = {(f.get("n"), f.get("x"), f.get("y"), f.get("t")): f
+                       for f in previous_map.get("features", [])}
+    for feature in features:
+        merged_features[(feature.get("n"), feature.get("x"), feature.get("y"), feature.get("t"))] = feature
     map_data = {
-        "version": "2026-10-19",
+        "version": "2026-10-23-airport-kondapalli",
         "bounds": BOUNDS,
         "attribution": "© OpenStreetMap contributors; ODbL 1.0",
         "snapshot": "2026-10-19",
@@ -211,9 +236,9 @@ def main() -> None:
         "names": names,
         "coordinates": coords,
         "roads": roads,
-        "waterways": waterways,
-        "features": features,
-        "places": matched,
+        "waterways": waterways or previous_map.get("waterways", []),
+        "features": list(merged_features.values()),
+        "places": previous_places,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(map_data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

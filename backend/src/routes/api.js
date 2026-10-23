@@ -77,7 +77,7 @@ const activityPayloadSchema=z.object({
  screen:z.enum(['welcome','home','explore','saved','itinerary','nearby','transport','settings','qr','map','detail']).optional(),
  action:z.string().regex(/^[a-z][a-z0-9-]{0,49}$/).optional(),
  destinationId:z.string().max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
- category:z.enum(['All places','Sacred places','River & city','Culture & views','Nature & outdoors','Heritage','Transport hubs','Malls & shopping','Health & emergency','Police & safety']).optional(),
+ category:z.enum(['All places','Sacred places','River & city','Culture & views','Nature & outdoors','Heritage','Transport','Transport hubs','Hotels','Museums','Vegetarian restaurants','Non-vegetarian restaurants','Entertainment','Parks','Malls & shopping','Health & emergency','Police & safety']).optional(),
  queryLength:z.number().int().min(0).max(300).optional(),resultCount:z.number().int().min(0).max(10000).optional(),
  routeSource:z.enum(['device','kiosk','place']).optional(),routeMeters:z.number().min(0).max(500000).optional(),
  outcome:z.enum(['success','failure','granted','denied','current','updated','unavailable','invalid','requested']).optional(),

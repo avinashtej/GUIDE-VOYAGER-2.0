@@ -47,6 +47,10 @@
 .detail-map-panel h3{margin-bottom:8px}
 .detail-map-panel p{font-size:11px;line-height:1.65;color:#7d8880;margin:0}
 .itinerary-directions{margin-top:19px;padding-top:16px;border-top:1px solid #efeee8}
+.plan-overall-distance{display:grid;gap:6px;margin:15px 0;padding:16px 18px;background:#f1f2ec;border:1px solid #e6e7de;border-radius:14px}
+.plan-overall-distance>span{font-size:9px;font-weight:800;letter-spacing:.12em;color:#718078}
+.plan-overall-distance>strong{font-size:25px;color:var(--forest)}
+.plan-overall-distance>small,.plan-distance-note{font-size:10px;line-height:1.5;color:#7d8880;margin:0}
 .itinerary-directions h3{font:700 13px Manrope;margin:0 0 7px}
 .itinerary-directions>p{font-size:10px;line-height:1.55;color:#7d8880;margin:0 0 11px}
 .map-route-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #efeee8}
@@ -126,3 +130,4 @@
 .facilities-block li:before{content:'•';position:absolute;left:2px;top:0;color:#729079;font-size:15px}
 .visitor-information .source-link{margin-top:16px}
 @media(max-width:500px){.visitor-facts{grid-template-columns:1fr}}
+ .place-card[data-place-id],.map-place-card[data-place-id],.transport-card[data-place-id]{cursor:pointer}.place-card[data-place-id]:focus-visible,.map-place-card[data-place-id]:focus-visible,.transport-card[data-place-id]:focus-visible{outline:3px solid #72917d;outline-offset:3px}

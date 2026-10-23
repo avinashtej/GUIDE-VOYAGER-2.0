@@ -34,37 +34,59 @@ function metersBetween(a, b) {
 }
 
 function buildGraph(map) {
+  // Fastest-route estimates vary by road class. Explicit OSM maxspeed values
+  // win when present; legacy extracts use conservative city-road estimates.
+  const fallbackSpeeds = [80, 65, 50, 40, 30, 22, 12, 0];
+  const pathClass = map.roadClasses.indexOf('path');
   const count = map.coordinates.length;
   const degree = new Uint32Array(count);
+  const active = new Uint8Array(count);
   let edgeCount = 0;
-  for (const [, , path] of map.roads) {
+  const parent = new Int32Array(count); for (let i = 0; i < count; i++) parent[i] = i;
+  const rootOf = node => { while (parent[node] !== node) { parent[node] = parent[parent[node]]; node = parent[node]; } return node; };
+  for (const road of map.roads) {
+    const [, roadClass, path] = road, direction = road[3] || 0;
+    if (roadClass === pathClass) continue;
     for (let i = 1; i < path.length; i++) {
-      degree[path[i - 1]]++; degree[path[i]]++; edgeCount += 2;
+      const a = path[i - 1], b = path[i];
+      active[a] = 1; active[b] = 1;
+      if (direction >= 0) degree[a]++;
+      if (direction <= 0) degree[b]++;
+      edgeCount += direction === 0 ? 2 : 1;
+      const rootA = rootOf(a), rootB = rootOf(b); if (rootA !== rootB) parent[rootA] = rootB;
     }
   }
   const offsets = new Uint32Array(count + 1);
   for (let i = 0; i < count; i++) offsets[i + 1] = offsets[i] + degree[i];
   const cursor = offsets.slice(0, count);
-  const neighbors = new Uint32Array(edgeCount), lengths = new Float32Array(edgeCount), roadIds = new Int32Array(edgeCount);
+  const neighbors = new Uint32Array(edgeCount), lengths = new Float32Array(edgeCount), costs = new Float32Array(edgeCount), roadIds = new Int32Array(edgeCount);
   for (let roadId = 0; roadId < map.roads.length; roadId++) {
-    const [, , path] = map.roads[roadId];
+    const road = map.roads[roadId], [, roadClass, path] = road, direction = road[3] || 0;
+    if (roadClass === pathClass) continue;
+    const speed = Number(road[4]) > 0 ? Number(road[4]) : fallbackSpeeds[roadClass] || 18;
     for (let i = 1; i < path.length; i++) {
       const a = path[i - 1], b = path[i], length = metersBetween(map.coordinates[a], map.coordinates[b]);
-      let index = cursor[a]++; neighbors[index] = b; lengths[index] = length; roadIds[index] = roadId;
-      index = cursor[b]++; neighbors[index] = a; lengths[index] = length; roadIds[index] = roadId;
+      if (direction >= 0) { const index = cursor[a]++; neighbors[index] = b; lengths[index] = length; costs[index] = length * 3.6 / speed; roadIds[index] = roadId; }
+      if (direction <= 0) { const index = cursor[b]++; neighbors[index] = a; lengths[index] = length; costs[index] = length * 3.6 / speed; roadIds[index] = roadId; }
     }
   }
-  return { offsets, neighbors, lengths, roadIds, count };
+  const component = new Int32Array(count); component.fill(-1); const ids = new Map(); let nextId = 0;
+  for (let node = 0; node < count; node++) if (active[node]) { const root = rootOf(node); if (!ids.has(root)) ids.set(root, nextId++); component[node] = ids.get(root); }
+  return { offsets, neighbors, lengths, costs, roadIds, count, component };
 }
 
 function nearestNode(map, point) {
   const target = [point.longitude * map.coordinateScale, point.latitude * map.coordinateScale];
-  let best = -1, distance = Infinity;
+  const nearestByComponent = new Map();
   for (let i = 0; i < graph.count; i++) {
+    const component = graph.component[i];
+    if (component < 0) continue;
     const d = metersBetween(target, map.coordinates[i]);
-    if (d < distance) { best = i; distance = d; }
+    const current = nearestByComponent.get(component) || [];
+    current.push({ node: i, distance: d, component }); current.sort((a,b)=>a.distance-b.distance);
+    if (current.length > 4) current.pop(); nearestByComponent.set(component, current);
   }
-  return { node: best, distance };
+  return [...nearestByComponent.values()].flat();
 }
 
 class MinHeap {
@@ -90,33 +112,45 @@ class MinHeap {
 
 export function routeBetween(map, start, end) {
   if (!graph || !start || !end) return { error: 'Choose a mapped start point and destination first.' };
-  const from = nearestNode(map, start), to = nearestNode(map, end);
-  if (from.distance > 1800 || to.distance > 1800) return { error: 'This point is too far from the bundled Vijayawada walking roads for a reliable offline route.' };
-  const distance = new Float64Array(graph.count); distance.fill(Infinity); distance[from.node] = 0;
-  const previous = new Int32Array(graph.count); previous.fill(-1);
-  const previousRoad = new Int32Array(graph.count); previousRoad.fill(-1);
-  const open = new MinHeap(); open.push([metersBetween(map.coordinates[from.node], map.coordinates[to.node]), 0, from.node]);
-  while (open.length) {
-    const [estimate, cost, node] = open.pop();
-    if (cost !== distance[node]) continue;
-    if (node === to.node) break;
-    for (let edge = graph.offsets[node]; edge < graph.offsets[node + 1]; edge++) {
-      const next = graph.neighbors[edge], candidate = cost + graph.lengths[edge];
-      if (candidate >= distance[next]) continue;
-      distance[next] = candidate; previous[next] = node; previousRoad[next] = graph.roadIds[edge];
-      const heuristic = metersBetween(map.coordinates[next], map.coordinates[to.node]);
-      open.push([candidate + heuristic, candidate, next]);
+  const fromCandidates = nearestNode(map, start), toCandidates = nearestNode(map, end);
+  const snapPairs = [];
+  for (const from of fromCandidates) for (const to of toCandidates) {
+    if (from.component !== to.component || from.distance > 1800 || to.distance > 1800) continue;
+    snapPairs.push({ from, to, snapCost: from.distance + to.distance });
+  }
+  if (!snapPairs.length) return { error: 'A connected car road could not be found near both points in the saved map.' };
+  snapPairs.sort((a,b)=>a.snapCost-b.snapCost);
+  let result = null;
+  for (const { from, to } of snapPairs.slice(0, 24)) {
+    const distance = new Float64Array(graph.count); distance.fill(Infinity); distance[from.node] = 0;
+    const previous = new Int32Array(graph.count); previous.fill(-1);
+    const previousRoad = new Int32Array(graph.count); previousRoad.fill(-1);
+    const open = new MinHeap(); open.push([metersBetween(map.coordinates[from.node], map.coordinates[to.node]) * 3.6 / 160, 0, from.node]);
+    while (open.length) {
+      const [, cost, node] = open.pop();
+      if (cost !== distance[node]) continue;
+      if (node === to.node) break;
+      for (let edge = graph.offsets[node]; edge < graph.offsets[node + 1]; edge++) {
+        const next = graph.neighbors[edge], candidate = cost + graph.costs[edge];
+        if (candidate >= distance[next]) continue;
+        distance[next] = candidate; previous[next] = node; previousRoad[next] = graph.roadIds[edge];
+        const heuristic = metersBetween(map.coordinates[next], map.coordinates[to.node]) * 3.6 / 160;
+        open.push([candidate + heuristic, candidate, next]);
+      }
     }
+    if (!Number.isFinite(distance[to.node])) continue;
+    const nodes = [], edgeRoads = [];
+    for (let node = to.node; node !== -1; node = previous[node]) {
+      nodes.push(node);
+      if (node !== from.node) edgeRoads.push(previousRoad[node]);
+      if (node === from.node) break;
+    }
+    nodes.reverse(); edgeRoads.reverse();
+    const meters = edgeRoads.reduce((sum, roadId, i) => sum + metersBetween(map.coordinates[nodes[i]], map.coordinates[nodes[i+1]]), 0);
+    result = { nodes, edgeRoads, meters, durationSeconds: distance[to.node], fromSnap: from.distance, toSnap: to.distance }; break;
   }
-  if (!Number.isFinite(distance[to.node])) return { error: 'No walkable connection between these points exists in the offline map.' };
-  const nodes = [], edgeRoads = [];
-  for (let node = to.node; node !== -1; node = previous[node]) {
-    nodes.push(node);
-    if (node !== from.node) edgeRoads.push(previousRoad[node]);
-    if (node === from.node) break;
-  }
-  nodes.reverse(); edgeRoads.reverse();
-  return { nodes, edgeRoads, meters: distance[to.node], fromSnap: from.distance, toSnap: to.distance };
+  if (!result) return { error: 'A connected car route could not be found on the saved road map. Try another starting point or check the place map pin.' };
+  return result;
 }
 
 function bearing(a, b, scale) {

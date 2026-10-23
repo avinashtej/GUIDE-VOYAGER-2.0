@@ -6,14 +6,14 @@
   <meta name="theme-color" content="#f5f3ed">
   <meta name="description" content="Discover Vijayawada, even when you're offline.">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/vijayawada-icon-photo.png" type="image/png">
   <link rel="stylesheet" href="./src/styles.css">
-  <title>Guide Voyager — Vijayawada, at your own pace</title>
+  <title>GuideVoyager: Vijayawada</title>
 </head>
 <body>
   <div class="app-shell">
     <aside class="side-rail" aria-label="Main navigation">
-      <a class="brand" href="#home" aria-label="Guide Voyager home"><img src="/assets/mark.svg" alt=""><span>guide<span class="brand-light">voyager</span></span></a>
+      <a class="brand" href="#home" aria-label="GuideVoyager: Vijayawada home"><img src="/assets/vijayawada-icon-photo.png" alt=""><span>GuideVoyager<span class="brand-light">: Vijayawada</span></span></a>
       <div class="rail-label" data-i18n="your_journey">YOUR JOURNEY</div>
       <nav class="rail-nav">
         <button class="nav-item active" data-view="home"><span class="nav-icon">⌂</span><span data-i18n="home">Home</span></button>
@@ -32,7 +32,7 @@
 
     <main class="main-area">
       <header class="topbar">
-        <div class="mobile-brand"><img src="/assets/mark.svg" alt=""><span>guide<span class="brand-light">voyager</span></span></div>
+        <div class="mobile-brand"><img src="/assets/vijayawada-icon-photo.png" alt=""><span>GuideVoyager<span class="brand-light">: Vijayawada</span></span></div>
         <div class="location-pill"><span class="location-pin">⌖</span><span>VIJAYAWADA, ANDHRA PRADESH</span><span class="chevron">⌄</span></div>
         <div class="top-actions"><span class="offline-label"><i class="status-dot"></i><span data-i18n="offline_ready">Offline ready</span></span><button class="avatar-button" id="open-settings" aria-label="Open settings">A</button></div>
       </header>
@@ -83,11 +83,6 @@
       <button class="button button-dark full" type="submit">Permanently delete account</button>
     </form>
   </dialog>
-  <dialog class="modal" id="analytics-consent" aria-labelledby="analytics-consent-title">
-    <div class="modal-card"><span class="eyebrow">YOUR PRIVACY</span><h2 id="analytics-consent-title">Share app usage?</h2><p class="muted">If enabled, Guide Voyager records pages opened and actions such as searches, saved places, plans and route requests. Account activity is linked to your account; guest activity uses a random ID on this device. Search text, passwords, QR contents and location coordinates are never included. Events sync when you’re online. You can change this choice in Settings. Feedback you submit is sent separately so the administrator can review it.</p><button type="button" class="button button-dark full" data-action="analytics-enable">Allow usage tracking</button><button type="button" class="text-button full" data-action="analytics-disable">Continue without tracking</button></div>
-  </dialog>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>
-
-

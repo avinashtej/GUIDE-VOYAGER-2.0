@@ -1,9 +1,9 @@
 {
-  "name": "Guide Voyager — Vijayawada",
-  "short_name": "Guide Voyager",
+  "name": "GuideVoyager: Vijayawada",
+  "short_name": "GuideVoyager",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f5f3ed",
   "theme_color": "#f5f3ed",
-  "icons": [{ "src": "./assets/mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+  "icons": [{ "src": "./assets/vijayawada-icon-photo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }]
 }

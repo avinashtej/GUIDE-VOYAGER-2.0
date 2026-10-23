@@ -6,7 +6,7 @@ This repository uses one Node web service for the tourist app, API, and admin da
 
 1. Push the project, including `render.yaml`, to the GitHub branch connected to Render.
 2. In Render, choose **New + → Blueprint** and select the `GUIDE-VOYAGER-2.0` repository and `main` branch.
-3. Render reads `render.yaml`. Keep the web service name `guide-voyager` and select the Free plan for an initial trial.
+3. Render reads `render.yaml`. Keep the web service name `guide-voyager` and select the Free plan for an initial trial. The build command must be `npm ci --include=dev && npm run build:mobile` so Vite is installed during the build even when `NODE_ENV=production`.
 4. When Render asks for `DATABASE_URL`, open the existing `guide-voyager` PostgreSQL service in another tab, open **Connect**, and copy its **Internal Database URL**. Paste it into Render's secret/environment variable prompt. Do not put this URL in GitHub, chat, or a source file.
 5. Render generates `JWT_SECRET`. Leave that generated value unchanged and private.
 6. Review and create the Blueprint. Wait for the service deploy to finish successfully.

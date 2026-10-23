@@ -63,7 +63,7 @@ Build the APK from Android Studio or Gradle after the Android SDK/JDK are config
 - The map extract is © OpenStreetMap contributors, ODbL 1.0, snapshot 2026-10-19. Destination pins are matched to named OSM features or come from the coordinate source recorded in the map data; some facilities may have approximate access points.
 - The hardware QR contract and samples are outstanding; the app currently displays raw decoded text without interpreting it.
 - Account registration/login is implemented. Cross-device favorites/itinerary sync, guest-data migration and protected account-specific offline data are not active. The local encryption/key-management decision remains open in the blueprint.
-- Admin drafts currently manage destination text and source links. The dashboard lists registered accounts and synced activity; activity tracking is consent-based. Translation review, image management, route/transport editing and inactive-content controls remain to be implemented.
+- Admin drafts currently manage destination text and source links. The dashboard lists registered accounts and synced activity; activity sharing is on by default and can be turned off in Settings. Translation review, image management, route/transport editing and inactive-content controls remain to be implemented.
 - No live railway/bus timetables, fares, travel durations, app-store URL or hosting configuration are bundled.
 - Detailed analytics events are deleted after 24 months by the running API process. Production operations still need a backup/export retention policy and monitoring for cleanup failures.
 

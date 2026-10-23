@@ -24,6 +24,20 @@ allprojects {
     }
 }
 
+// Keep generated Gradle output outside OneDrive. Synced files can be locked
+// during Gradle cleanup, including app classes and Capacitor modules in
+// node_modules. Include a project-path hash so separate checkouts do not clash.
+def guideVoyagerLocalData = System.getenv('LOCALAPPDATA') ?: System.getProperty('user.home')
+def guideVoyagerBuildRoot = new File(
+    guideVoyagerLocalData,
+    "GuideVoyager/gradle-build/${rootProject.projectDir.name}-${Integer.toHexString(rootProject.projectDir.absolutePath.hashCode())}"
+)
+
+subprojects { subproject ->
+    subproject.buildDir = new File(guideVoyagerBuildRoot, subproject.name)
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
+    delete guideVoyagerBuildRoot
 }
