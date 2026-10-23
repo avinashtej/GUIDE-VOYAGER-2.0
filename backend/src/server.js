@@ -36,12 +36,34 @@ app.use((error,_req,res,_next)=>{console.error('Unhandled API error:',error.mess
 async function bootstrap(){
  if(isConfigured){
   try{const migrationDir=path.join(root,'backend','migrations');const migrations=fs.readdirSync(migrationDir).filter(file=>/^\d+.*\.sql$/.test(file)).sort();for(const file of migrations)await query(fs.readFileSync(path.join(migrationDir,file),'utf8'));console.log(`Database schema is ready (${migrations.length} migrations).`);
-    const current=await query('SELECT 1 FROM content_versions LIMIT 1');if(!current.rowCount){const destinations=JSON.parse(fs.readFileSync(path.join(root,'mobile-app','public','data','destinations.json'),'utf8'));const client=await pool.connect();try{await client.query('BEGIN');for(const d of destinations)await client.query("INSERT INTO destinations(id,payload,status) VALUES($1,$2,'published') ON CONFLICT(id) DO NOTHING",[d.id,d]);await client.query('INSERT INTO content_versions(version,destinations) VALUES($1,$2)', ['2026.10.19-offline-ambedkar-gandhi-update',JSON.stringify(destinations)]);await client.query('COMMIT');}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}}
+    await syncBundledContent();
   }catch(error){console.error('Database setup failed; the offline app can still be served:',error.message);}
   const cleanup=async()=>{try{await query("DELETE FROM analytics_events WHERE occurred_at < now() - interval '24 months'");}catch(error){console.error('Analytics retention cleanup failed:',error.message);}};
   await cleanup();setInterval(cleanup,24*60*60*1000).unref();
  }else console.warn('DATABASE_URL is not set. Serving the offline app; online services are unavailable.');
  const port=Number(process.env.PORT||3000);app.listen(port,'0.0.0.0',()=>console.log(`Guide Voyager is available on http://localhost:${port}`));
+}
+async function syncBundledContent(){
+ const dataDir=path.join(root,'mobile-app','public','data');
+ const manifest=JSON.parse(fs.readFileSync(path.join(dataDir,'content-manifest.json'),'utf8'));
+ const bundled=JSON.parse(fs.readFileSync(path.join(dataDir,'destinations.json'),'utf8'));
+ if(!manifest.contentVersion||!Array.isArray(bundled))throw new Error('The bundled guide manifest or destinations are invalid.');
+ const client=await pool.connect();
+ try{
+  await client.query('BEGIN');
+  await client.query("SELECT pg_advisory_xact_lock(hashtext('guide-voyager-bundled-guide'))");
+  const exists=await client.query('SELECT 1 FROM content_versions WHERE version=$1',[manifest.contentVersion]);
+  if(exists.rowCount){await client.query('COMMIT');console.log(`Guide content is current (${manifest.contentVersion}).`);return;}
+  const published=await client.query("SELECT DISTINCT ON (destination_id) destination_id,payload FROM content_drafts WHERE status='published' AND destination_id IS NOT NULL ORDER BY destination_id,published_at DESC NULLS LAST,updated_at DESC");
+  const merged=new Map(bundled.map(place=>[place.id,place]));
+  for(const row of published.rows){const draft=row.payload||{};const id=row.destination_id;if(merged.has(id))merged.set(id,{...merged.get(id),...draft,id});else merged.set(id,{...draft,id});}
+  const places=[...merged.values()];
+  await client.query("UPDATE destinations SET status='archived' WHERE status='published'");
+  for(const place of places)await client.query("INSERT INTO destinations(id,payload,status,updated_at) VALUES($1,$2,'published',now()) ON CONFLICT(id) DO UPDATE SET payload=EXCLUDED.payload,status='published',updated_at=now()",[place.id,JSON.stringify(place)]);
+  await client.query('INSERT INTO content_versions(version,destinations) VALUES($1,$2)',[manifest.contentVersion,JSON.stringify(places)]);
+  await client.query('COMMIT');
+  console.log(`Synchronized guide content ${manifest.contentVersion} (${places.length} places).`);
+ }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
 }
 bootstrap();
 

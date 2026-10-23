@@ -1,6 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
 const { z } = require('zod');
 const { query, pool, isConfigured } = require('../db');
 const { authenticate, authenticateOptional, requireRole } = require('../middleware/auth');
@@ -16,7 +18,7 @@ const destinationSchema = z.object({
   name_hi: z.string().max(120).optional().default(''), kind: z.string().max(40).optional().default('place'),
   accent: z.string().max(40).optional().default('heritage'), glyph: z.string().max(12).optional().default('⌖'),
   verified: z.boolean().optional().default(false)
-});
+}).passthrough();
 function ensureDatabase(req,res,next){if(!isConfigured)return res.status(503).json({error:'Database is not configured.'});next();}
 function makeToken(user){if(!process.env.JWT_SECRET||process.env.JWT_SECRET.length<32)throw new Error('Authentication requires a JWT_SECRET with at least 32 characters.');return jwt.sign({sub:user.id,email:user.email,role:user.role},process.env.JWT_SECRET,{expiresIn:'12h',issuer:'guide-voyager'});}
 
@@ -77,7 +79,7 @@ const activityPayloadSchema=z.object({
  screen:z.enum(['welcome','home','explore','saved','itinerary','nearby','transport','settings','qr','map','detail']).optional(),
  action:z.string().regex(/^[a-z][a-z0-9-]{0,49}$/).optional(),
  destinationId:z.string().max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
- category:z.enum(['All places','Sacred places','River & city','Culture & views','Nature & outdoors','Heritage','Transport','Transport hubs','Hotels','Museums','Vegetarian restaurants','Non-vegetarian restaurants','Entertainment','Parks','Malls & shopping','Health & emergency','Police & safety']).optional(),
+ category:z.enum(['All places','Temples','River & city','Culture & views','Nature & outdoors','Heritage','Transport hubs','Hotels','Museums','Restaurants','Entertainment','Malls & shopping','Health & emergency','Police & safety']).optional(),
  queryLength:z.number().int().min(0).max(300).optional(),resultCount:z.number().int().min(0).max(10000).optional(),
  routeSource:z.enum(['device','kiosk','place']).optional(),routeMeters:z.number().min(0).max(500000).optional(),
  outcome:z.enum(['success','failure','granted','denied','current','updated','unavailable','invalid','requested']).optional(),
@@ -116,6 +118,19 @@ router.get('/admin/drafts',ensureDatabase,async(_req,res)=>{
 router.get('/admin/destinations',ensureDatabase,async(_req,res)=>{
  try{const result=await query("SELECT payload,updated_at FROM destinations WHERE status='published' ORDER BY id");res.json({destinations:result.rows});}
  catch(error){console.error('Published destination list failed:',error.message);res.status(500).json({error:'Could not load published destinations.'});}
+});
+router.get('/admin/content-status',ensureDatabase,async(_req,res)=>{
+ try{
+  const dataDir=path.resolve(__dirname,'../../../mobile-app/public/data');
+  const manifest=JSON.parse(fs.readFileSync(path.join(dataDir,'content-manifest.json'),'utf8'));
+  const bundled=JSON.parse(fs.readFileSync(path.join(dataDir,'destinations.json'),'utf8'));
+  const [synced,latest,count]=await Promise.all([
+   query('SELECT 1 FROM content_versions WHERE version=$1',[manifest.contentVersion]),
+   query('SELECT version,published_at,jsonb_array_length(destinations)::int AS place_count FROM content_versions ORDER BY published_at DESC LIMIT 1'),
+   query("SELECT count(*)::int AS place_count FROM destinations WHERE status='published'")
+  ]);
+  res.json({bundleVersion:manifest.contentVersion,bundledPlaceCount:bundled.length,bundleSynced:Boolean(synced.rowCount),latestVersion:latest.rows[0]?.version||null,latestPublishedAt:latest.rows[0]?.published_at||null,latestSnapshotPlaceCount:latest.rows[0]?.place_count||0,publishedPlaceCount:count.rows[0]?.place_count||0});
+ }catch(error){console.error('Admin content status failed:',error.message);res.status(500).json({error:'Could not check the latest guide update.'});}
 });
 router.post('/admin/drafts',ensureDatabase,async(req,res)=>{
  const parsed=destinationSchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Check the required destination fields.',details:parsed.error.flatten().fieldErrors});
