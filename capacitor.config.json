@@ -1,6 +1,6 @@
 {
   "appId": "in.guidevoyager.app",
-  "appName": "Guide Voyager",
+  "appName": "GuideVoyager: Vijayawada",
   "webDir": "dist/mobile",
   "server": { "androidScheme": "https" },
   "plugins": {
