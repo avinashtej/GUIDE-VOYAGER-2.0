@@ -131,3 +131,47 @@
 .visitor-information .source-link{margin-top:16px}
 @media(max-width:500px){.visitor-facts{grid-template-columns:1fr}}
  .place-card[data-place-id],.map-place-card[data-place-id],.transport-card[data-place-id]{cursor:pointer}.place-card[data-place-id]:focus-visible,.map-place-card[data-place-id]:focus-visible,.transport-card[data-place-id]:focus-visible{outline:3px solid #72917d;outline-offset:3px}
+
+/* Follow Android's system appearance while keeping map imagery and place photos unchanged. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ink: #e8eee9;
+    --muted: #aab8af;
+    --line: #34433b;
+    --paper: #111b17;
+    --card: #1d2923;
+    --forest: #93c5a3;
+    --forest2: #397354;
+    --lime: #d9e38d;
+    --gold: #e8c184;
+    --clay: #e49472;
+  }
+  body { background: var(--paper); color: var(--ink); }
+  .side-rail, .place-card, .quick-card, .inline-banner, .searchbox,
+  .empty-state, .info-panel, .note-panel, .plan-panel, .transport-card,
+  .map-side, .qr-box, .setting-card, .map-place-card, .offline-route-result,
+  .modal-card { background-color: var(--card) !important; border-color: var(--line) !important; color: var(--ink); }
+  .topbar { background: rgba(17, 27, 23, .94); border-color: var(--line); }
+  .nav-item, .location-pill, .offline-label, .detail-facts, .card-tag,
+  .page-heading p, .detail-copy > p, .card-body p, .plan-panel > p,
+  .transport-card p, .map-notice p, .map-side p, .setting-card p,
+  .info-panel p, .note-panel, .muted, .map-attribution, .storage-row,
+  .plan-item small, .plan-footer { color: var(--muted) !important; }
+  .nav-item:hover, .nav-item.active, .offline-card, .filter-chip.active,
+  .plan-index, .transport-icon, .segmented { background: #263a30; color: #d9eadf; }
+  .button-dark, .filter-chip.active { background: #286246; color: #fff; }
+  .button-light, .button-outline, .filter-chip, .avatar-button {
+    background-color: #24332c; border-color: #45574c; color: #dce8df;
+  }
+  .searchbox, .text-field, textarea, select {
+    background-color: #17221d; border-color: #405047; color: var(--ink);
+  }
+  .segmented button { color: #b7c5bc; }
+  .segmented button.active { background: #344a3d; color: #edf5ef; }
+  .storage-row { border-color: var(--line); }
+  .detail-facts b, .note-panel strong, .storage-row strong { color: #d1e2d5; }
+  .source-link, .text-button, a { color: #a8d4b4; }
+  .modal::backdrop { background: rgba(3, 9, 6, .82); }
+  .toast { background: #315f49; color: #fff; }
+}

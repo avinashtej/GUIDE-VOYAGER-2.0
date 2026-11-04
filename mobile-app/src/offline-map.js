@@ -298,7 +298,7 @@ export function drawOfflineMap(canvas, map, options = {}) {
     context.lineWidth = 2; context.strokeStyle = '#355744'; context.stroke();
     if (place.id === options.destinationId && options.route) {
       drawMapTag(context, 'DESTINATION', x + 10, y - 8, '#a9543d');
-    } else if (place.id === options.destinationId || viewport.zoom > 1.8) {
+    } else if (place.id === options.destinationId) {
       context.font = '600 11px Manrope, sans-serif'; context.textAlign = 'left'; context.textBaseline = 'middle';
       context.fillStyle = '#203c31'; context.fillText(place.name, x + 9, y - 1, 150);
     }
