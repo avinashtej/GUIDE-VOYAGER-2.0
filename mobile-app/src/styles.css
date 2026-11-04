@@ -179,3 +179,4 @@
 .qr-source-card { max-width: 420px; }
 .qr-source-actions { display: grid; gap: 10px; margin-top: 20px; }
 .qr-source-actions .button { width: 100%; padding: 14px; }
+.map-side .map-location-accuracy { border-radius: 10px; background: #f5efe1; color: #725827; padding: 10px 12px; }
