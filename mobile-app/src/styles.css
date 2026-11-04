@@ -175,3 +175,7 @@
   .modal::backdrop { background: rgba(3, 9, 6, .82); }
   .toast { background: #315f49; color: #fff; }
 }
+
+.qr-source-card { max-width: 420px; }
+.qr-source-actions { display: grid; gap: 10px; margin-top: 20px; }
+.qr-source-actions .button { width: 100%; padding: 14px; }
