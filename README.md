@@ -8,7 +8,7 @@ An offline-first Vijayawada tourism guide with a plain HTML/CSS/JavaScript mobil
 - Nineteen bundled destinations: attractions, transport hubs, malls, major hospitals and the Vijayawada City Police Commissionerate. Each entry links to a district, tourism, health-provider or venue source. Volatile details such as current hours and schedules are called out for confirmation.
 - English, Telugu and Hindi interface labels and localized place names. Descriptions are currently in English.
 - Offline saved places, a one-list itinerary, font-size preference and a feedback queue. Browser builds use IndexedDB; native builds use the Capacitor SQLite plugin.
-- A modular QR entry/decoder that does not interpret the payload until the hardware team supplies the format and sample codes.
+- Offline kiosk-trip QR import: validates the version 1 JSON payload, checks destination IDs against the bundled guide, preserves stop order, removes duplicates and saves the trip to My plan.
 - Backend authentication, idempotent event/feedback ingestion, published content snapshots, draft validation and explicit publish steps, administrator account, feedback and activity views, and 24-month analytics cleanup.
 - Progressive Web App shell caching for a browser install. The Android build packages its local web assets.
 
@@ -61,7 +61,7 @@ Build the APK from Android Studio or Gradle after the Android SDK/JDK are config
 - Maps and Nearby draw the bundled Vijayawada OSM road extract locally; they do not load live map tiles. The 4.5 MB map file includes about 142,000 road nodes, 28,000 road segments, and map points for the 19 guide destinations. It is cached for offline viewing. After selecting a destination and setting device or kiosk location, choose Start shortest route to show the shortest path in the bundled walking network.
 - Walking routes are calculated on-device from the bundled road graph, starting from device location or a kiosk point saved on the device. The numbered left/right steps are derived from OSM street geometry, not a surveyed route or live navigation service; check local access and crossings before travelling. Bhavani Island routes stop at its mapped APSTDC boat service point.
 - The map extract is © OpenStreetMap contributors, ODbL 1.0, snapshot 2026-10-19. Destination pins are matched to named OSM features or come from the coordinate source recorded in the map data; some facilities may have approximate access points.
-- The hardware QR contract and samples are outstanding; the app currently displays raw decoded text without interpreting it.
+- Kiosk-trip QR contract is implemented for `GUIDE_VOYAGER` version 1 `trip` payloads with ordered `destinationIds`. Real receipt scans still need to be checked against the kiosk printer’s QR size and contrast on target phones.
 - Account registration/login is implemented. Cross-device favorites/itinerary sync, guest-data migration and protected account-specific offline data are not active. The local encryption/key-management decision remains open in the blueprint.
 - Admin drafts currently manage destination text and source links. The dashboard lists registered accounts and synced activity; activity sharing is on by default and can be turned off in Settings. Translation review, image management, route/transport editing and inactive-content controls remain to be implemented.
 - No live railway/bus timetables, fares, travel durations, app-store URL or hosting configuration are bundled.

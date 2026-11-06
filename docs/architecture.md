@@ -13,7 +13,7 @@ admin-dashboard (separate HTML/CSS/JS app)
         ├─ Express API and validation
         └─ PostgreSQL (users, destinations, drafts, versions, feedback, events)
 
-ESP32 kiosk remains a separate system. QR payload parsing is intentionally an adapter boundary.
+ESP32 kiosk remains a separate system. Its version 1 `GUIDE_VOYAGER` trip JSON is validated by the mobile app against bundled destination IDs and imported into the local itinerary store.
 ```
 
 ## Local data contract
@@ -47,7 +47,7 @@ Maps and Nearby render a bundled OpenStreetMap extract locally on a canvas. `mob
 ## Not yet selected
 
 - Periodic OSM extract refresh and review of destination access points and walking routes.
-- Hardware QR schema and real sample images.
+- Validate printed kiosk QR size, contrast and scan reliability on the team’s target phones. The app accepts version 1 trip JSON with an ordered `destinationIds` array.
 - Encryption secret management, Android recovery, and account-data isolation after logout.
 - Play Store URL and production backup/recovery operations.
 
