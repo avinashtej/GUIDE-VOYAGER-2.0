@@ -179,4 +179,15 @@
 .qr-source-card { max-width: 420px; }
 .qr-source-actions { display: grid; gap: 10px; margin-top: 20px; }
 .qr-source-actions .button { width: 100%; padding: 14px; }
+.qr-camera-dialog { width: min(94vw, 560px); }
+.qr-camera-card { position: relative; max-width: 560px; }
+.qr-video-wrap { position: relative; overflow: hidden; width: 100%; margin: 18px 0 12px; border-radius: 18px; background: #07130e; aspect-ratio: 4 / 3; }
+.qr-video-wrap video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.qr-camera-status { min-height: 1.5em; }
+.qr-camera-flash { margin-bottom: 8px; }
+.scan-shortcut{width:36px;height:36px;display:grid;place-items:center;flex:none;border:1px solid #d9ded6;border-radius:50%;background:#e9eee7;color:var(--forest);padding:8px}
+.scan-shortcut svg{display:block;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.scan-shortcut:hover{background:#dce8dc}
+[data-theme="dark"] .scan-shortcut{background:#344a3d;border-color:#4b5d51;color:#e8eee9}
+@media(max-width:760px){.topbar{padding-inline:4%}.top-actions{gap:10px}.offline-label{display:none}.scan-shortcut{width:38px;height:38px}}
 .map-side .map-location-accuracy { border-radius: 10px; background: #f5efe1; color: #725827; padding: 10px 12px; }

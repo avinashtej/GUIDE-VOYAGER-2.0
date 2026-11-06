@@ -26,6 +26,12 @@ const offlineMapPlaceIds=new Set(['kanaka-durga-temple','prakasam-barrage','gand
 const bundledContentVersion='2026.10.23-vijayawada-airport-kondapalli-photos';
 const state = { view:'welcome', destination:null, filter:'All places', query:'', rating:0, feedbackTarget:null, language:'en', destinations:[], bundledDestinations:[], favorites:new Set(), plans:[], events:[], location:null, kioskLocation:null, selectingKiosk:false, offlineMap:null, activeRoute:null, focusMapId:null, user:null, analyticsConsent:'enabled', guestId:null, contentVersion:bundledContentVersion };
 let navigationStack=[];
+let activeQrScanner=null;
+let qrCameraGeneration=0;
+let qrCameraStatusTimer=null;
+let qrNativeScanTimer=null;
+let qrTorchEnabled=false;
+let qrScanHandled=false;
 const contentDate=version=>{const match=String(version||'').match(/^(\d{4})\.(\d{2})\.(\d{2})/);return match?Number(`${match[1]}${match[2]}${match[3]}`):null;};
 const isLegacyBundledContent=version=>{if(['2026.10.19-offline-map','2026.10.19-offline-photos'].includes(version))return true;const cachedDate=contentDate(version),bundledDate=contentDate(bundledContentVersion);return cachedDate!==null&&bundledDate!==null&&cachedDate<bundledDate;};
 const $ = (s, root=document) => root.querySelector(s);
@@ -259,7 +265,7 @@ function bindShell(){
   $('#feedback-form').addEventListener('click',event=>{const star=event.target.closest('[data-rating]');if(star){state.rating=Number(star.dataset.rating);paintStars();}});
   window.addEventListener('online',trySync);
   window.addEventListener('popstate',()=>{if(navigationStack.length>1)navigationStack.pop();const current=navigationStack.at(-1)||{view:'home',destinationId:null};state.view=current.view;state.destination=current.destinationId?state.destinations.find(place=>place.id===current.destinationId)||null:null;state.query='';render();window.scrollTo({top:0,behavior:'smooth'});});
-  window.guideVoyagerHandleBack=()=>{const dialog=document.querySelector('dialog[open]');if(dialog){dialog.close();return true;}if(navigationStack.length>1){history.back();return true;}return false;};
+window.guideVoyagerHandleBack=()=>{const dialog=document.querySelector('dialog[open]');if(dialog){if(dialog.id==='qr-camera-dialog')stopQrCamera();dialog.close();return true;}if(navigationStack.length>1){history.back();return true;}return false;};
   document.addEventListener('keydown',event=>{const card=event.target.closest('.place-card[data-place-id],.map-place-card[data-place-id],.transport-card[data-place-id]');if(card&&!event.target.closest('a,button,input,select,textarea')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openPlace(card.dataset.placeId);}});
 }
 function updateStaticText(){document.querySelectorAll('[data-i18n]').forEach(node=>{node.textContent=tr(node.dataset.i18n)});}
@@ -315,7 +321,7 @@ function emptyBox(icon,title,copyText,button=''){return `<div class="empty-state
 function renderSaved(){const places=state.destinations.filter(p=>state.favorites.has(p.id));return `${heading('YOUR JOURNEY',tr('saved'),`Places you chose to keep close. ${places.length} saved.`)}${places.length?`<div class="card-grid">${places.map(placeCard).join('')}</div>`:emptyBox('♡',tr('empty_saved'),tr('empty_saved_copy'),`<button class="button button-dark" data-action="navigate" data-id="explore">${tr('browse_places')}</button>`)}`}
 function renderDetail(place){const facilities=Array.isArray(place.facilities)?place.facilities:[];return `<button class="text-button" data-action="back">← ${tr('back')}</button><section class="detail-top"><div class="detail-copy"><span class="eyebrow">${esc(place.category)} · VIJAYAWADA</span><h1>${esc(name(place))}</h1><p>${esc(place.summary)}</p><div class="detail-actions"><button class="button button-dark" data-action="plan-add" data-id="${esc(place.id)}">+ ${tr('add_to_plan')}</button><button class="button button-outline" data-action="feedback" data-id="${esc(place.id)}">☆ ${tr('rate_place')}</button><button class="button button-light" data-action="favorite" data-id="${esc(place.id)}">${state.favorites.has(place.id)?'♥ Saved':'♡ Save'}</button></div><div class="detail-facts"><span><b>${tr('included')}</b>Offline guide</span><span><b>${tr('unknown_duration')}</b>Confirm locally</span></div></div><div class="detail-art">${artMarkup(place)}${photoCreditMarkup(place,'detail-photo-credit')}</div></section><section class="detail-sections"><div class="detail-main-column"><article class="info-panel"><h3>About this place</h3><p>${esc(place.description)}</p><p class="about-visiting">${esc(place.visiting)}</p><a class="source-link" href="${esc(place.source)}" target="_blank" rel="noopener">${tr('source')}: ${esc(place.source_label)} ↗</a></article><article class="info-panel"><h3>History</h3><p>${esc(place.history||'A short history is not available in this offline guide.')}</p></article><article class="info-panel visitor-information"><h3>Visitor information</h3><div class="visitor-facts"><section><h4>Timings</h4><p>${esc(place.timings||'Check current timings with the venue.')}</p></section><section><h4>Entry fee</h4><p>${esc(place.entry_fee||'₹0')}</p></section></div><div class="facilities-block"><h4>Facilities</h4>${facilities.length?`<ul>${facilities.map(item=>`<li>${esc(item)}</li>`).join('')}</ul>`:'<p>Facility details are not listed in this offline guide.</p>'}</div><a class="source-link" href="${esc(place.details_source||place.source)}" target="_blank" rel="noopener">${tr('source')}: ${esc(place.details_source_label||place.source_label)} ↗</a></article></div><div><div class="note-panel"><strong>${tr('content_language')}</strong></div><div class="map-side detail-map-panel"><h3>Map &amp; directions</h3>${placeContactMarkup(place)}<p>${tr('map_copy')}</p>${mapActions(place)}</div></div></section>`}
 function renderTransport(){const stations=state.destinations.filter(p=>p.category==='Transport hubs');return `${heading('GETTING AROUND',tr('transport_title'),tr('transport_sub'))}<div class="transport-list">${stations.map(p=>`<article class="transport-card" data-place-id="${esc(p.id)}" tabindex="0" role="link" aria-label="Open ${esc(name(p))}"><div class="transport-icon">${icons[p.kind]}</div><h3>${esc(name(p))}</h3><p>${esc(p.description)}</p><a href="${esc(p.source)}" target="_blank" rel="noopener">${tr('source')}: ${esc(p.source_label)} ↗</a>${mapActions(p)}</article>`).join('')}</div><div class="inline-banner"><div><strong>Check schedules before leaving</strong><p>${tr('transport_note')}</p></div><button class="button button-outline small" data-action="transport-source">Open transport website ↗</button></div>`}
-function renderQr(){return `${heading('KIOSK TRIP','Import a kiosk itinerary','Scan the trip QR code printed by a Guide Voyager kiosk. This works offline.')}<section class="qr-box"><span class="eyebrow">KIOSK TRIP</span><h2>Bring your kiosk trip to this phone</h2><p>Choose the camera or a saved photo. The places will be loaded from the guide on this phone.</p><label class="field-label" for="qr-input">Or paste trip details</label><textarea id="qr-input" rows="4" placeholder="Paste the kiosk trip JSON here"></textarea><div class="qr-actions"><button class="button button-dark" data-action="qr-check">Import trip</button><button class="button button-outline" data-action="qr-camera">Scan QR code</button></div><div class="note-panel" id="qr-output">Scan a kiosk receipt QR code or paste its trip details above.</div><input id="qr-file" type="file" accept="image/*" hidden><dialog id="qr-source-dialog" class="modal"><div class="modal-card qr-source-card"><button class="modal-close" data-action="qr-source-close" aria-label="Close">×</button><span class="eyebrow">SCAN A QR CODE</span><h2>Choose how to scan</h2><p>Use your camera now or choose a saved photo.</p><div class="qr-source-actions"><button class="button button-dark" data-action="qr-open-camera">Open camera</button><button class="button button-outline" data-action="qr-open-photos">Choose a photo</button></div></div></dialog></section>`}
+function renderQr(){return `${heading('KIOSK TRIP','Import a kiosk itinerary','Scan the trip QR code printed by a Guide Voyager kiosk. This works offline.')}<section class="qr-box"><span class="eyebrow">KIOSK TRIP</span><h2>Bring your kiosk trip to this phone</h2><p>Scan the kiosk receipt with your camera or choose a saved photo. Places are loaded from the guide on this phone.</p><label class="field-label" for="qr-input">Or paste trip details</label><textarea id="qr-input" rows="4" placeholder="Paste the kiosk trip JSON here"></textarea><div class="qr-actions"><button class="button button-dark" data-action="qr-check">Import trip</button><button class="button button-outline" data-action="qr-camera">Scan QR code</button></div><div class="note-panel" id="qr-output">Scan a kiosk receipt QR code or paste its trip details above.</div><input id="qr-file" type="file" accept="image/*" hidden><dialog id="qr-source-dialog" class="modal"><div class="modal-card qr-source-card"><button class="modal-close" data-action="qr-source-close" aria-label="Close">×</button><span class="eyebrow">SCAN A QR CODE</span><h2>Choose how to scan</h2><p>Use your camera now or choose a saved photo.</p><div class="qr-source-actions"><button class="button button-dark" data-action="qr-open-camera">Open camera</button><button class="button button-outline" data-action="qr-open-photos">Choose a photo</button></div></div></dialog><dialog id="qr-camera-dialog" class="modal qr-camera-dialog"><div class="modal-card qr-camera-card"><button class="modal-close" data-action="qr-camera-close" aria-label="Close camera">×</button><span class="eyebrow">SCAN A QR CODE</span><h2>Scan the kiosk receipt</h2><p>Hold the phone steady and keep the QR code visible anywhere in the camera view.</p><div class="qr-video-wrap"><video id="qr-camera-preview" autoplay muted playsinline></video></div><button id="qr-camera-flash" class="button button-outline qr-camera-flash" data-action="qr-camera-flash" hidden>Turn on light</button><p id="qr-camera-status" class="qr-camera-status" aria-live="polite">Starting camera…</p><button class="button button-outline" data-action="qr-camera-close">Close camera</button></div></dialog></section>`}
  function renderSettings(){const analyticsOn=state.analyticsConsent==='enabled';const legalBase=(apiBaseUrl||window.location.origin).replace(/\/$/,'');return `${heading('YOUR PREFERENCES',tr('settings_title'),tr('settings_sub'))}<div class="settings-grid"><section class="setting-card"><h3>${tr('language')}</h3><p>Choose the language for buttons and place names.</p><div class="segmented">${[['en','English'],['te','తెలుగు'],['hi','हिन्दी']].map(([code,label])=>`<button data-action="language" data-id="${code}" class="${state.language===code?'active':''}">${label}</button>`).join('')}</div><p style="margin-top:12px">${tr('content_language')}</p></section><section class="setting-card"><h3>${tr('text_size')}</h3><p>Make words easier to read.</p><div class="range-row"><span>A</span><input type="range" min="0.9" max="1.2" step="0.1" value="${document.documentElement.style.getPropertyValue('--font-scale')||1}" id="font-range"><span style="font-size:18px">A</span></div></section><section class="setting-card"><h3>Your saved information</h3><p>Your saved places and day plans stay on this phone. App activity is shared unless you turn it off below.</p><div class="storage-row"><span>${tr('favorites_label')}</span><strong>${state.favorites.size}</strong></div><div class="storage-row"><span>Day plans</span><strong>${state.plans.length}</strong></div><div class="storage-row"><span>Feedback waiting to send</span><strong>${state.events.filter(e=>e.type==='feedback').length}</strong></div><button class="button button-outline small" data-action="clear-data">Clear saved information</button></section><section class="setting-card"><h3>Share app activity</h3><p>Guide Voyager shares pages opened and actions such as searching, saving places, making a day plan and asking for directions. Search words, passwords, QR contents and exact location are not included.</p><div class="storage-row"><span>Sharing</span><strong>${analyticsOn?'On':'Off'}</strong></div><p>${analyticsOn?'Activity waits on this phone when there is no internet and is sent when you reconnect. Turning sharing off stops future sharing and clears activity waiting to send.':'App activity is not shared. Turn sharing on if you want your use to appear in the administrator’s reports.'} Information already sent may remain in reports for up to 24 months. Feedback you send is handled separately.</p><button class="button button-outline small" data-action="${analyticsOn?'analytics-disable':'analytics-enable'}">${analyticsOn?'Turn off sharing':'Turn on sharing'}</button></section><section class="setting-card"><h3>Guide updates</h3><p>Check for the latest place information.</p><button class="button button-light small" data-action="content-update">Check for guide updates</button><h3 style="margin-top:22px">App updates</h3><p>Check whether a newer app is available.</p><button class="button button-light small" data-action="app-update">Check for app updates</button></section><section class="setting-card"><h3>Privacy and account</h3><p>Read what information is saved and how to request its removal.</p><p><a href="${legalBase}/privacy-policy.html" target="_blank" rel="noopener">Privacy information</a></p><p><a href="${legalBase}/delete-account.html" target="_blank" rel="noopener">Request account removal</a></p>${state.user?'<button class="button button-outline small" data-action="delete-account">Delete this account</button>':''}</section></div><div class="inline-banner"><div><strong>${state.user?'Signed in as '+esc(state.user.email):'Account and activity sharing'}</strong><p>${state.user?(analyticsOn?'App activity is shared when you have internet. Your saved places and day plans stay on this phone.':'App activity sharing is off. Your saved places and day plans stay on this phone.'):'Guest mode works without an account. Sign-in and registration need an internet connection.'}</p></div>${state.user?`<button class="button button-outline small" data-action="signout">Sign out</button>`:`<button class="button button-outline small" data-action="account-info">Sign in or create an account</button>`}</div>`}
 function renderOfflineItinerary(){
   if(!state.offlineMap&&!state.offlineMapLoading){state.offlineMapLoading=true;loadOfflineMap().then(map=>{state.offlineMap=map;state.offlineMapLoading=false;if(state.view==='itinerary')render();}).catch(()=>{state.offlineMapLoading=false;});}
@@ -383,7 +389,15 @@ async function handleAction(action,id,originId=''){
   }
  if(action==='qr-camera'){$('#qr-source-dialog')?.showModal();return;}
  if(action==='qr-source-close'){$('#qr-source-dialog')?.close();return;}
- if(action==='qr-open-camera'||action==='qr-open-photos'){const input=$('#qr-file');if(input){if(action==='qr-open-camera')input.setAttribute('capture','environment');else input.removeAttribute('capture');input.value='';$('#qr-source-dialog')?.close();input.click();}return;}
+ if(action==='qr-open-camera'){$('#qr-source-dialog')?.close();$('#qr-camera-dialog')?.showModal();startQrCamera();return;}
+ if(action==='qr-camera-close'){stopQrCamera();$('#qr-camera-dialog')?.close();return;}
+ if(action==='qr-camera-flash'){
+  if(typeof activeQrScanner?.switchTorch!=='function'){const status=$('#qr-camera-status');if(status)status.textContent='The phone camera does not support its light control.';return;}
+  try{qrTorchEnabled=!qrTorchEnabled;await activeQrScanner.switchTorch(qrTorchEnabled);const flash=$('#qr-camera-flash');if(flash)flash.textContent=qrTorchEnabled?'Turn off light':'Turn on light';}
+  catch{const status=$('#qr-camera-status');if(status)status.textContent='The camera light could not be changed on this phone.';}
+  return;
+ }
+ if(action==='qr-open-photos'){const input=$('#qr-file');if(input){input.removeAttribute('capture');input.value='';$('#qr-source-dialog')?.close();input.click();}return;}
 }
 function openAccountDialog(){
   $('#account-message').textContent='';$('#account-title').dataset.mode='login';$('#account-title').textContent='Sign in';$('#account-submit').textContent='Sign in';$('#account-switch').textContent='Create an account';$('#account-password').autocomplete='current-password';$('#account-dialog').showModal();
@@ -420,9 +434,66 @@ async function onDeleteAccountSubmit(event){
 async function decodeQrImage(event){
   const file=event.target.files?.[0];event.target.value='';if(!file)return;
   let imageUrl;
-  try{imageUrl=URL.createObjectURL(file);const {BrowserQRCodeReader}=await import('@zxing/browser');const reader=new BrowserQRCodeReader();const result=await reader.decodeFromImageUrl(imageUrl);$('#qr-input').value=result.getText();await handleAction('qr-check');}
-  catch{toast('No QR code could be read. Try a clearer photo with the full code visible.');}
+  try{imageUrl=URL.createObjectURL(file);const [{BrowserQRCodeReader},{DecodeHintType,BarcodeFormat}]=await Promise.all([import('@zxing/browser'),import('@zxing/library')]);const hints=new Map([[DecodeHintType.POSSIBLE_FORMATS,[BarcodeFormat.QR_CODE]],[DecodeHintType.TRY_HARDER,true]]);const reader=new BrowserQRCodeReader(hints);const result=await reader.decodeFromImageUrl(imageUrl);$('#qr-input').value=result.getText();await handleAction('qr-check');}
+  catch{const output=$('#qr-output');if(output)output.textContent='I could not read that photo. Try the live camera, or retake the picture with the entire QR code sharp, bright and filling more of the frame.';toast('QR code not clear enough. Try the live camera or a closer, brighter photo.');}
   finally{if(imageUrl)URL.revokeObjectURL(imageUrl);}
+}
+async function startQrCamera(){
+ const preview=$('#qr-camera-preview'),status=$('#qr-camera-status');if(!preview||!status)return;
+ const generation=++qrCameraGeneration;let attempts=0;qrTorchEnabled=false;qrScanHandled=false;
+ status.textContent='Starting the rear camera…';
+ try{
+  const [{BrowserQRCodeReader},{DecodeHintType,BarcodeFormat}]=await Promise.all([import('@zxing/browser'),import('@zxing/library')]);
+  if(generation!==qrCameraGeneration||!$('#qr-camera-dialog')?.open)return;
+  const hints=new Map([[DecodeHintType.POSSIBLE_FORMATS,[BarcodeFormat.QR_CODE]],[DecodeHintType.TRY_HARDER,true]]);
+  const reader=new BrowserQRCodeReader(hints);
+  const controls=await reader.decodeFromConstraints({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}}},preview,result=>{if(result)acceptQrCameraResult(result.getText(),generation);});
+  if(generation!==qrCameraGeneration||!$('#qr-camera-dialog')?.open){controls.stop();return;}
+  activeQrScanner=controls;
+  const flash=$('#qr-camera-flash');
+  if(typeof controls.switchTorch==='function')flash?.removeAttribute('hidden');
+  else if(flash)flash.hidden=true;
+  const track=preview.srcObject?.getVideoTracks?.()[0];
+  try{const capabilities=track?.getCapabilities?.();if(capabilities?.focusMode?.includes('continuous'))await track.applyConstraints({advanced:[{focusMode:'continuous'}]});}catch{}
+  try{const zoom=track?.getCapabilities?.().zoom;if(zoom){const target=Math.min(zoom.max,Math.max(zoom.min,2));if(target>zoom.min)await track.applyConstraints({advanced:[{zoom:target}]});}}catch{}
+  status.textContent='Camera ready. The whole view is being scanned—show the QR code anywhere on screen.';
+  startNativeQrDetection(preview,generation);
+  qrCameraStatusTimer=setInterval(()=>{attempts+=1;if(attempts===2)status.textContent='Still looking. Keep the code anywhere in view and let it come into focus.';else if(attempts===5)status.textContent='If it is dim, tap Turn on light. Keep all four QR corners visible.';},4000);
+ }catch(error){
+  stopQrCamera();
+  if(status)status.textContent='Camera could not open. Allow camera access in your phone settings, or choose a saved photo instead.';
+ }
+}
+function acceptQrCameraResult(raw,generation){
+ if(generation!==qrCameraGeneration||qrScanHandled||!$('#qr-camera-dialog')?.open)return;
+ qrScanHandled=true;stopQrCamera();$('#qr-camera-dialog')?.close();
+ const input=$('#qr-input');if(input)input.value=raw;
+ handleAction('qr-check');
+}
+async function startNativeQrDetection(preview,generation){
+ if(typeof window.BarcodeDetector!=='function')return;
+ try{
+  const formats=await window.BarcodeDetector.getSupportedFormats?.();
+  if(formats&&!formats.includes('qr_code'))return;
+  const detector=new window.BarcodeDetector({formats:['qr_code']});
+  const scan=async()=>{
+   if(generation!==qrCameraGeneration||qrScanHandled||!$('#qr-camera-dialog')?.open)return;
+   try{const codes=await detector.detect(preview);const value=codes.find(code=>code.rawValue)?.rawValue;if(value){acceptQrCameraResult(value,generation);return;}}catch{}
+   if(generation===qrCameraGeneration&&!qrScanHandled)qrNativeScanTimer=setTimeout(scan,250);
+  };
+  scan();
+ }catch{}
+}
+function stopQrCamera(){
+ qrCameraGeneration+=1;
+ if(qrCameraStatusTimer){clearInterval(qrCameraStatusTimer);qrCameraStatusTimer=null;}
+ if(qrNativeScanTimer){clearTimeout(qrNativeScanTimer);qrNativeScanTimer=null;}
+ const flash=$('#qr-camera-flash');if(flash){flash.hidden=true;flash.textContent='Turn on light';}
+ qrTorchEnabled=false;
+ try{activeQrScanner?.stop?.();}catch{}
+ activeQrScanner=null;
+ const preview=$('#qr-camera-preview');
+ if(preview?.srcObject){for(const track of preview.srcObject.getTracks())track.stop();preview.srcObject=null;}
 }
 async function addToPlan(id){if(!id)return;const place=state.destinations.find(p=>p.id===id);if(!place)return;let plan=state.plans[0]||{id:'main',name:'My Vijayawada day',placeIds:[]};if(!plan.placeIds.includes(id))plan.placeIds.push(id);await put('itineraries',plan);state.plans=[plan];if(state.destination){toast(tr('added_plan'));}else{toast(tr('plan_saved'));}render();}
 async function savePlanName(){let plan=state.plans[0]||{id:'main',name:'My Vijayawada day',placeIds:[]};plan.name=$('#plan-name').value.trim()||'My Vijayawada day';await put('itineraries',plan);state.plans=[plan];recordActivity('ui_action',{screen:'itinerary',action:'plan-name-change'});}
@@ -451,7 +522,7 @@ async function calculateOfflineRoute(destinationId,originId=''){
 }
 function openFeedback(id){state.feedbackTarget=state.destinations.find(p=>p.id===id);state.rating=0;$('#feedback-place').textContent=state.feedbackTarget?name(state.feedbackTarget):'';$('#feedback-comment').value='';paintStars();$('#feedback-dialog').showModal();}
 function paintStars(){const group=$('.star-picker');group.innerHTML=[1,2,3,4,5].map(i=>`<button type="button" class="${i<=state.rating?'selected':''}" data-rating="${i}" aria-label="${i} stars">★</button>`).join('');}
-async function onFeedbackSubmit(event){event.preventDefault();if(!state.feedbackTarget||!state.rating){toast('Choose a star rating first.');return;}const row={id:uid(),type:'feedback',destinationId:state.feedbackTarget.id,rating:state.rating,comment:$('#feedback-comment').value.trim(),createdAt:new Date().toISOString(),status:'pending'};await put('feedback',row);await recordActivity('feedback',{screen:'detail',destinationId:row.destinationId,rating:row.rating,comment:row.comment});$('#feedback-dialog').close();toast(tr('feedback_saved'));render();trySync();}
+async function onFeedbackSubmit(event){event.preventDefault();if(!state.feedbackTarget||!state.rating){toast('Choose a star rating first.');return;}const row={id:uid(),type:'feedback',destinationId:state.feedbackTarget.id,rating:state.rating,comment:$('#feedback-comment').value.trim(),createdAt:new Date().toISOString(),status:'approved'};await put('feedback',row);await recordActivity('feedback',{screen:'detail',destinationId:row.destinationId,rating:row.rating,comment:row.comment});$('#feedback-dialog').close();toast(tr('feedback_saved'));render();trySync();}
 function safeActivityPayload(event,type){
  const input=event.payload||{},payload={};
  let screen=input.screen;

@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const dns = require('dns').promises;
 const fs = require('fs');
 const path = require('path');
 const { z } = require('zod');
@@ -21,6 +22,16 @@ const destinationSchema = z.object({
 }).passthrough();
 function ensureDatabase(req,res,next){if(!isConfigured)return res.status(503).json({error:'Database is not configured.'});next();}
 function makeToken(user){if(!process.env.JWT_SECRET||process.env.JWT_SECRET.length<32)throw new Error('Authentication requires a JWT_SECRET with at least 32 characters.');return jwt.sign({sub:user.id,email:user.email,role:user.role},process.env.JWT_SECRET,{expiresIn:'12h',issuer:'guide-voyager'});}
+async function emailDomainCanReceiveMail(email){
+ const domain=email.slice(email.lastIndexOf('@')+1).toLowerCase();
+ try{if((await dns.resolveMx(domain)).length>0)return true;}
+ catch(error){if(!['ENODATA','ENOTFOUND','ENOTIMP'].includes(error.code))throw error;}
+ const addresses=await Promise.all([
+  dns.resolve4(domain).catch(error=>{if(['ENODATA','ENOTFOUND','ENOTIMP'].includes(error.code))return [];throw error;}),
+  dns.resolve6(domain).catch(error=>{if(['ENODATA','ENOTFOUND','ENOTIMP'].includes(error.code))return [];throw error;})
+ ]);
+ return addresses.some(records=>records.length>0);
+}
 
 router.get('/health', async (_req,res)=>{
   let database='not-configured';
@@ -41,6 +52,8 @@ router.post('/auth/register',ensureDatabase,async(req,res)=>{
  const parsed=z.object({email:emailSchema, password:z.string().min(10).max(128)}).safeParse(req.body);
  if(!parsed.success)return res.status(400).json({error:'Enter a valid email and a password with at least 10 characters.'});
  if(!process.env.JWT_SECRET||process.env.JWT_SECRET.length<32)return res.status(503).json({error:'Authentication requires a JWT_SECRET with at least 32 characters.'});
+ try{if(!await emailDomainCanReceiveMail(parsed.data.email))return res.status(422).json({error:'This email address does not appear able to receive mail. Check the spelling or use an active email address.'});}
+ catch(error){console.error('Email domain check failed:',error.code||error.message);return res.status(503).json({error:'Could not check this email right now. Please try again in a moment.'});}
  try{const passwordHash=await bcrypt.hash(parsed.data.password,12);const result=await query('INSERT INTO users(email,password_hash) VALUES($1,$2) RETURNING id,email,role,created_at',[parsed.data.email.toLowerCase(),passwordHash]);const user=result.rows[0];res.status(201).json({token:makeToken(user),user:{id:user.id,email:user.email,role:user.role}});}
  catch(error){if(error.code==='23505')return res.status(409).json({error:'An account with this email already exists.'});console.error('Registration failed:',error.message);res.status(500).json({error:'Could not create the account.'});}
 });
@@ -103,7 +116,7 @@ router.post('/sync/events',syncLimiter,authenticateOptional,ensureDatabase,async
    const userId=event.accountId?req.user.sub:null,guestId=event.guestId||null;
    const eventPayload=type==='feedback'?{destinationId,rating}:payload||{};
    await client.query('INSERT INTO analytics_events(event_id,event_type,payload,occurred_at,user_id,guest_id,session_id) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(event_id) DO NOTHING',[id,type,eventPayload,createdAt,userId,guestId,event.sessionId]);
-   if(type==='feedback')await client.query('INSERT INTO feedback(event_id,destination_id,rating,comment,submitted_at,user_id,guest_id,session_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(event_id) DO NOTHING',[id,destinationId,rating,comment||'',createdAt,userId,guestId,event.sessionId]);
+   if(type==='feedback')await client.query("INSERT INTO feedback(event_id,destination_id,rating,comment,submitted_at,user_id,guest_id,session_id,review_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'approved') ON CONFLICT(event_id) DO NOTHING",[id,destinationId,rating,comment||'',createdAt,userId,guestId,event.sessionId]);
    acceptedIds.push(id);
  }await client.query('COMMIT');res.status(202).json({accepted:acceptedIds.length,acceptedIds,received:parsed.data.events.length});}
  catch(error){await client.query('ROLLBACK');console.error('Event sync failed:',error.message);res.status(500).json({error:'Could not process queued events.'});}
