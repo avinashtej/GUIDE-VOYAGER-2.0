@@ -5,7 +5,7 @@ import { Browser } from '@capacitor/browser';
 import { Geolocation } from '@capacitor/geolocation';
 import { adjustOfflineMapZoom, bindOfflineMap, loadOfflineMap, placePoint, resetOfflineMapView, routeBetween, routeInstructions } from './offline-map.js';
 
-const apiBaseUrl = (import.meta.env?.VITE_API_BASE_URL || window.GUIDE_VOYAGER_API_URL || (Capacitor.isNativePlatform() ? 'https://guide-voyager-2-0.onrender.com' : '')).replace(/\/+$/, '');
+const apiBaseUrl = (import.meta.env?.VITE_API_BASE_URL || window.GUIDE_VOYAGER_API_URL || (Capacitor.isNativePlatform() ? 'https://guide-voyager-2-0-tqg6.onrender.com' : '')).replace(/\/+$/, '');
 const apiUrl = path => `${apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 const systemTheme = window.matchMedia?.('(prefers-color-scheme: dark)');
 function applySystemTheme(){
@@ -30,6 +30,7 @@ let activeQrScanner=null;
 let qrCameraGeneration=0;
 let qrCameraStatusTimer=null;
 let qrNativeScanTimer=null;
+let qrShadowScanTimer=null;
 let qrTorchEnabled=false;
 let qrScanHandled=false;
 const contentDate=version=>{const match=String(version||'').match(/^(\d{4})\.(\d{2})\.(\d{2})/);return match?Number(`${match[1]}${match[2]}${match[3]}`):null;};
@@ -327,7 +328,7 @@ function renderOfflineItinerary(){
   if(!state.offlineMap&&!state.offlineMapLoading){state.offlineMapLoading=true;loadOfflineMap().then(map=>{state.offlineMap=map;state.offlineMapLoading=false;if(state.view==='itinerary')render();}).catch(()=>{state.offlineMapLoading=false;});}
   const plan=state.plans[0]||{id:'main',name:'My Vijayawada day',placeIds:[]};
   const places=(plan.placeIds||[]).map(id=>state.destinations.find(p=>p.id===id)).filter(Boolean);
-  const legs=places.map((place,i)=>`<div class="map-route-row"><span class="plan-index">${String(i+1).padStart(2,'0')}</span><div><strong>${i?`${esc(name(places[i-1]))} → ${esc(name(place))}`:`Start → ${esc(name(place))}`}</strong><small>${i?'From the previous stop':state.location?'From your phone location':state.kioskLocation?'From your saved starting point':'Choose your starting point on Maps'}</small></div><button class="text-button" data-action="route" data-id="${esc(place.id)}" data-origin-id="${i?esc(places[i-1].id):''}">Get steps</button></div>`).join('');
+  const legs=places.map((place,i)=>`<div class="map-route-row"><span class="plan-index">${String(i+1).padStart(2,'0')}</span><div><strong>${i?`${esc(name(places[i-1]))} → ${esc(name(place))}`:`Start → ${esc(name(place))}`}</strong><small>${i?'From the previous stop':state.location?'From your phone location':state.kioskLocation?'From your saved starting point':'Get steps will ask to use your phone location'}</small></div><button class="text-button" data-action="route" data-id="${esc(place.id)}" data-origin-id="${i?esc(places[i-1].id):''}">Get steps</button></div>`).join('');
   let totalMeters=0, distanceReady=Boolean(state.offlineMap&&places.length), distanceError='';
   if(distanceReady){let origin=state.location||state.kioskLocation;if(!origin)distanceReady=false;else for(const place of places){const destination=placePoint(state.offlineMap,place.id);const route=routeBetween(state.offlineMap,origin,destination);if(route.error){distanceError=route.error;distanceReady=false;break;}totalMeters+=route.meters;origin=destination;}}
   const overallDistance=distanceReady?formatRouteDistance(totalMeters):state.offlineMap&&places.length?(distanceError?`<p class="plan-distance-note">${esc(distanceError)}</p>`:'<p class="plan-distance-note">Set your phone location or choose a saved starting point on Maps to see the full trip distance.</p>'):'<p class="plan-distance-note">Preparing the saved road map…</p>';
@@ -434,7 +435,24 @@ async function onDeleteAccountSubmit(event){
 async function decodeQrImage(event){
   const file=event.target.files?.[0];event.target.value='';if(!file)return;
   let imageUrl;
-  try{imageUrl=URL.createObjectURL(file);const [{BrowserQRCodeReader},{DecodeHintType,BarcodeFormat}]=await Promise.all([import('@zxing/browser'),import('@zxing/library')]);const hints=new Map([[DecodeHintType.POSSIBLE_FORMATS,[BarcodeFormat.QR_CODE]],[DecodeHintType.TRY_HARDER,true]]);const reader=new BrowserQRCodeReader(hints);const result=await reader.decodeFromImageUrl(imageUrl);$('#qr-input').value=result.getText();await handleAction('qr-check');}
+  try{
+    imageUrl=URL.createObjectURL(file);
+    const [{BrowserQRCodeReader},{DecodeHintType,BarcodeFormat}]=await Promise.all([import('@zxing/browser'),import('@zxing/library')]);
+    const hints=new Map([[DecodeHintType.POSSIBLE_FORMATS,[BarcodeFormat.QR_CODE]],[DecodeHintType.TRY_HARDER,true]]),reader=new BrowserQRCodeReader(hints);
+    let result;
+    try{result=await reader.decodeFromImageUrl(imageUrl);}catch{
+      const image=new Image();image.src=imageUrl;await image.decode();
+      const scale=Math.min(1,1800/Math.max(image.naturalWidth,image.naturalHeight));
+      const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+      const context=canvas.getContext('2d',{willReadFrequently:true});
+      for(const filter of ['grayscale(1) contrast(1.45) brightness(1.28)','grayscale(1) contrast(1.8) brightness(1.45)','grayscale(1) contrast(1.6) invert(1)']){
+        context.filter=filter;context.drawImage(image,0,0,canvas.width,canvas.height);context.filter='none';
+        try{result=await reader.decodeFromCanvas(canvas);break;}catch{}
+      }
+      if(!result)throw new Error('QR code not found in image');
+    }
+    $('#qr-input').value=result.getText();await handleAction('qr-check');
+  }
   catch{const output=$('#qr-output');if(output)output.textContent='I could not read that photo. Try the live camera, or retake the picture with the entire QR code sharp, bright and filling more of the frame.';toast('QR code not clear enough. Try the live camera or a closer, brighter photo.');}
   finally{if(imageUrl)URL.revokeObjectURL(imageUrl);}
 }
@@ -455,14 +473,31 @@ async function startQrCamera(){
   else if(flash)flash.hidden=true;
   const track=preview.srcObject?.getVideoTracks?.()[0];
   try{const capabilities=track?.getCapabilities?.();if(capabilities?.focusMode?.includes('continuous'))await track.applyConstraints({advanced:[{focusMode:'continuous'}]});}catch{}
-  try{const zoom=track?.getCapabilities?.().zoom;if(zoom){const target=Math.min(zoom.max,Math.max(zoom.min,2));if(target>zoom.min)await track.applyConstraints({advanced:[{zoom:target}]});}}catch{}
+  try{const exposure=track?.getCapabilities?.().exposureCompensation;if(exposure){const value=Math.min(exposure.max,Math.max(exposure.min,exposure.min+(exposure.max-exposure.min)*.35));await track.applyConstraints({advanced:[{exposureCompensation:value}]});}}catch{}
   status.textContent='Camera ready. The whole view is being scanned—show the QR code anywhere on screen.';
   startNativeQrDetection(preview,generation);
+  startShadowQrDetection(preview,reader,generation);
   qrCameraStatusTimer=setInterval(()=>{attempts+=1;if(attempts===2)status.textContent='Still looking. Keep the code anywhere in view and let it come into focus.';else if(attempts===5)status.textContent='If it is dim, tap Turn on light. Keep all four QR corners visible.';},4000);
  }catch(error){
   stopQrCamera();
   if(status)status.textContent='Camera could not open. Allow camera access in your phone settings, or choose a saved photo instead.';
  }
+}
+async function startShadowQrDetection(preview,reader,generation){
+ const canvas=document.createElement('canvas'),context=canvas.getContext('2d',{willReadFrequently:true});if(!context)return;
+ const scan=async()=>{
+  if(generation!==qrCameraGeneration||qrScanHandled||!$('#qr-camera-dialog')?.open)return;
+  try{
+   const width=preview.videoWidth,height=preview.videoHeight;if(width&&height){const scale=Math.min(1,1440/width);canvas.width=Math.round(width*scale);canvas.height=Math.round(height*scale);
+    for(const filter of ['grayscale(1) contrast(1.35) brightness(1.22)','grayscale(1) contrast(1.7) brightness(1.42)']){
+     context.filter=filter;context.drawImage(preview,0,0,canvas.width,canvas.height);context.filter='none';
+     try{const result=await reader.decodeFromCanvas(canvas);if(result){acceptQrCameraResult(result.getText(),generation);return;}}catch{}
+    }
+   }
+  }catch{}
+  if(generation===qrCameraGeneration&&!qrScanHandled)qrShadowScanTimer=setTimeout(scan,850);
+ };
+ qrShadowScanTimer=setTimeout(scan,500);
 }
 function acceptQrCameraResult(raw,generation){
  if(generation!==qrCameraGeneration||qrScanHandled||!$('#qr-camera-dialog')?.open)return;
@@ -488,6 +523,7 @@ function stopQrCamera(){
  qrCameraGeneration+=1;
  if(qrCameraStatusTimer){clearInterval(qrCameraStatusTimer);qrCameraStatusTimer=null;}
  if(qrNativeScanTimer){clearTimeout(qrNativeScanTimer);qrNativeScanTimer=null;}
+ if(qrShadowScanTimer){clearTimeout(qrShadowScanTimer);qrShadowScanTimer=null;}
  const flash=$('#qr-camera-flash');if(flash){flash.hidden=true;flash.textContent='Turn on light';}
  qrTorchEnabled=false;
  try{activeQrScanner?.stop?.();}catch{}
@@ -499,20 +535,21 @@ async function addToPlan(id){if(!id)return;const place=state.destinations.find(p
 async function savePlanName(){let plan=state.plans[0]||{id:'main',name:'My Vijayawada day',placeIds:[]};plan.name=$('#plan-name').value.trim()||'My Vijayawada day';await put('itineraries',plan);state.plans=[plan];recordActivity('ui_action',{screen:'itinerary',action:'plan-name-change'});}
 async function requestLocation(){
  recordActivity('location_request',{screen:currentScreen(),outcome:'requested'});
- const denied=()=>{recordActivity('location_request',{screen:currentScreen(),outcome:'denied'});toast('Turn on Location and allow Precise location for GuideVoyager. You can still choose a saved starting point.');};
- const granted=position=>{const accuracy=Number(position.coords.accuracy)||null;state.location={latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy};recordActivity('location_request',{screen:currentScreen(),outcome:'granted'});render();if(accuracy>100)toast(`Your phone location may be off by about ${formatRouteDistance(accuracy)}. Set GuideVoyager's Location access to Precise in Android settings for better directions.`);};
+ const denied=()=>{recordActivity('location_request',{screen:currentScreen(),outcome:'denied'});toast('Turn on Location and allow Precise location for GuideVoyager. You can still choose a saved starting point.');return null;};
+ const granted=position=>{const accuracy=Number(position.coords.accuracy)||null;state.location={latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy};recordActivity('location_request',{screen:currentScreen(),outcome:'granted'});render();if(accuracy>100)toast(`Your phone location may be off by about ${formatRouteDistance(accuracy)}. Set GuideVoyager's Location access to Precise in Android settings for better directions.`);return position;};
  if(Capacitor.isNativePlatform()){
-  try{let permission=await Geolocation.checkPermissions();if(permission.location!=='granted')permission=await Geolocation.requestPermissions({permissions:['location']});if(permission.coarseLocation!=='granted'&&permission.location!=='granted'){denied();return;}granted(await Geolocation.getCurrentPosition({enableHighAccuracy:true,timeout:25000,maximumAge:0}));}catch{denied();}return;
+  try{let permission=await Geolocation.checkPermissions();if(permission.location!=='granted')permission=await Geolocation.requestPermissions({permissions:['location']});if(permission.coarseLocation!=='granted'&&permission.location!=='granted')return denied();return granted(await Geolocation.getCurrentPosition({enableHighAccuracy:true,timeout:25000,maximumAge:0}));}catch{return denied();}
  }
  if(!navigator.geolocation){denied();return;}
- navigator.geolocation.getCurrentPosition(granted,denied,{enableHighAccuracy:true,timeout:25000,maximumAge:0});
+ try{return granted(await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:25000,maximumAge:0})));}catch{return denied();}
 }
 async function calculateOfflineRoute(destinationId,originId=''){
   if(!state.offlineMap){try{state.offlineMap=await loadOfflineMap();}catch{toast('The saved city map is not available right now.');return;}}
   const destination=placePoint(state.offlineMap,destinationId);
   if(!destination){toast('This place is outside the saved city map.');return;}
-  const origin=originId?placePoint(state.offlineMap,originId):state.location||state.kioskLocation;
-  if(!origin){toast('Use your device location or save this kiosk’s start point on the Maps page first.');return;}
+  let origin=originId?placePoint(state.offlineMap,originId):state.location||state.kioskLocation;
+  if(!origin&&!originId){await requestLocation();origin=state.location||state.kioskLocation;}
+  if(!origin)return;
   const result=routeBetween(state.offlineMap,origin,destination);
   if(result.error){toast(result.error);return;}
   const originPlace=originId?state.destinations.find(place=>place.id===originId):null;

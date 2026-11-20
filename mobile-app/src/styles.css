@@ -191,3 +191,41 @@
 [data-theme="dark"] .scan-shortcut{background:#344a3d;border-color:#4b5d51;color:#e8eee9}
 @media(max-width:760px){.topbar{padding-inline:4%}.top-actions{gap:10px}.offline-label{display:none}.scan-shortcut{width:38px;height:38px}}
 .map-side .map-location-accuracy { border-radius: 10px; background: #f5efe1; color: #725827; padding: 10px 12px; }
+
+/* Keep text readable when Android applies its dark appearance. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #f2f6f3;
+  --muted: #c5d0c8;
+  --line: #34433b;
+  --paper: #111b17;
+  --card: #1d2923;
+  --forest: #a8d8b6;
+}
+:root[data-theme="dark"] body:not(.welcome-mode) {
+  background: var(--paper);
+  color: var(--ink);
+}
+:root[data-theme="dark"] body:not(.welcome-mode) :is(h1,h2,h3,h4,h5,h6,strong,b,label,li,dt,dd,legend,summary,span,button,.nav-item,.location-pill,.offline-label,.text-button,.field-label,.route-endpoints b,.detail-facts b,.storage-row strong) {
+  color: #f2f6f3 !important;
+}
+:root[data-theme="dark"] body:not(.welcome-mode) :is(p,small,.eyebrow,.muted,.rail-label,.nav-count,.brand-light,.card-tag,.card-arrow,.card-meta,.results-count,.quick-card small,.inline-banner p,.plan-item small,.plan-footer,.map-attribution,.photo-credit,.map-gesture-help,.map-route-row small,.route-endpoints span,.offline-route-result > p,.offline-route-steps li > small,.visitor-facts p,.facilities-block p) {
+  color: #c5d0c8 !important;
+}
+:root[data-theme="dark"] body:not(.welcome-mode) a,
+:root[data-theme="dark"] body:not(.welcome-mode) .source-link,
+:root[data-theme="dark"] body:not(.welcome-mode) .map-route-row > a {
+  color: #b8e2c4 !important;
+}
+:root[data-theme="dark"] body:not(.welcome-mode) :is(.detail-map-panel,.map-origin-status,.route-preview,.emergency-banner,.map-access-note,.map-location-accuracy,.map-status,.photo-unavailable-label) {
+  background-color: #1d2923 !important;
+  border-color: #405047 !important;
+}
+:root[data-theme="dark"] body:not(.welcome-mode) :is(.bottom-nav,.topbar) {
+  background-color: rgba(17, 27, 23, .96);
+  border-color: var(--line);
+}
+:root[data-theme="dark"] body:not(.welcome-mode) .bottom-nav button { color: #c5d0c8 !important; }
+:root[data-theme="dark"] body:not(.welcome-mode) .bottom-nav button.active { color: #b8e2c4 !important; }
+:root[data-theme="dark"] body:not(.welcome-mode) .button-primary { color: #26392d !important; }
+:root[data-theme="dark"] body:not(.welcome-mode) ::placeholder { color: #aab8af !important; opacity: 1; }
